@@ -11,13 +11,13 @@ The browser talks only to the Parlor server. The server keeps each user's OAuth 
 - **Reading**: per user and space, Parlor gets a space credential (delegation token from the user's PDS, then `authorizeSpaceSync` at the space host), follows `listWriters` with a cursor, and reads each current writer's repo with MAC-verified `listRepoOps`. It sweeps all writers every minute and re-authorizes then, so a removed member loses access within a minute. Messages live in memory only.
 - **Posting**: a `com.cruftmanor.parlor.message` record (`text`, `createdAt`) in the poster's own repo in the space, after a fresh membership check.
 - **Finding spaces**: Parlor keeps a directory of spaces created and members added through it. A member sees those spaces after signing in. Any other space opens from an invite link (`/?invite=<space URI>`), which works only for members.
-- **Scopes**: members grant `space:<type>?authority=*&collection=<message>`. Hosts also grant `space:<type>?authority=*&manage=create&manage=update`.
+- **Scopes**: members grant `space:<type>?authority=*&collection=<message>&collection=<reaction>`. Hosts also grant `space:<type>?authority=*&manage=create&manage=update`.
 
 Messages are shown in `createdAt` order (author-supplied), with author DID and record key as tie-breakers.
 
 ## Lexicons
 
-`lexicons/space.json` (space type declaration) and `lexicons/message.json` (message record). The declaration must be published as a `com.atproto.lexicon.schema` record, and DNS must carry `_lexicon.<authority>` pointing at the publishing DID, or OAuth sign-in fails. `npm run publish-lexicons` publishes both (see the script header for environment variables).
+`lexicons/space.json` (space type declaration), `lexicons/message.json` (message record) and `lexicons/reaction.json` (reaction record). The declaration must be published as a `com.atproto.lexicon.schema` record, and DNS must carry `_lexicon.<authority>` pointing at the publishing DID, or OAuth sign-in fails. `npm run publish-lexicons` publishes both (see the script header for environment variables).
 
 ## Development
 
@@ -29,7 +29,7 @@ Requires Node 22.13 or later (uses `node:sqlite`).
     npm test                 # unit tests
     npm run e2e              # end-to-end against the sandbox; needs two sandbox accounts and Edge or Chrome
 
-With a loopback `PUBLIC_URL`, the space type's declaration must already resolve. Tests on 2026-11-14 used `SPACE_TYPE=com.cruftbox.clockwork.parlorspace` and `MESSAGE_COLLECTION=com.cruftbox.clockwork.parlormessage`, whose declarations resolve through the existing `_lexicon.clockwork.cruftbox.com` record.
+With a loopback `PUBLIC_URL`, the space type's declaration must already resolve. Tests on 2026-11-14 used `SPACE_TYPE=com.cruftbox.clockwork.parlorspace`, `MESSAGE_COLLECTION=com.cruftbox.clockwork.parlormessage` and `REACTION_COLLECTION=com.cruftbox.clockwork.parlorreaction`, whose declarations resolve through the existing `_lexicon.clockwork.cruftbox.com` record.
 
 ## License
 

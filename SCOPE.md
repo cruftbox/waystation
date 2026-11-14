@@ -10,11 +10,11 @@ All Parlor code lives in this repository. Clockwork-specific code, such as the b
 - **Server-side Node app.** A Node server holds each user's OAuth session and makes the Spaces calls; the browser talks only to Parlor's server. Node because Bluesky's official atproto OAuth and Spaces libraries are written for it, and OAuth on the Spaces sandbox was verified with them.
 - **Hosting.** Runs on the cruftmanor.com server at `parlor.cruftmanor.com` (A record plus TLS certificate). Deployed over SSH. This is separate from Clockwork, which still deploys through its own dashboard. Setup and host facts are in DEPLOY.md.
 - **Lexicon.** Space type `com.cruftmanor.parlor.space` and message record `com.cruftmanor.parlor.message` (`text` up to 1000 graphemes, `createdAt`). The schemas are published from the clockworkconductor sandbox account (did:plc:e2fj77s3rygus52me3ul6qka); DNS needs `_lexicon.parlor.cruftmanor.com` TXT `did=did:plc:e2fj77s3rygus52me3ul6qka`.
-- **OAuth scopes.** Members: `space:com.cruftmanor.parlor.space?authority=*&collection=com.cruftmanor.parlor.message`. Hosts add `space:com.cruftmanor.parlor.space?authority=*&manage=create&manage=update`, chosen at sign-in with a checkbox. `listSpaces` is not used: it needs a read scope over every space type.
+- **OAuth scopes.** Members: `space:com.cruftmanor.parlor.space?authority=*&collection=com.cruftmanor.parlor.message&collection=com.cruftmanor.parlor.reaction`. Hosts add `space:com.cruftmanor.parlor.space?authority=*&manage=create&manage=update`, chosen at sign-in with a checkbox. `listSpaces` is not used: it needs a read scope over every space type.
 - **Target.** Build against the Spaces alpha sandbox (`https://spaces-alpha.host.bsky.network`) now. The public beta starts 2026-12-01 with an updated PDS and an official SDK; expect rework then.
 - **Finding a space (revised 2026-11-14).** The first decision (a player enters a space owner's handle and Parlor lists that owner's spaces) does not work for a newly added member (see Known facts). Replacement, decided by the user: Parlor keeps a directory of the spaces created and members added through it, and a member sees those spaces after signing in. Any other space opens from an invite link that the owner copies in Parlor; the link carries the space URI and works only for members. There are no join requests: in a memberspace only the owner adds members.
 - **Owner tools.** The owner of a space can create spaces and add or remove members by handle in Parlor.
-- **Chat scope.** Plain text with a length cap; messages ordered by time with the author's handle; updates every few seconds. No editing, deleting or reactions.
+- **Chat scope.** Plain text with a length cap; messages ordered by time with the author's handle; updates every few seconds. No editing or deleting. Emoji reactions from a fixed palette of 16 (added 2026-11-14).
 - **Attachments (added 2026-11-14).** One file per message: PNG, JPEG, GIF or WebP shown inline, or a PDF offered as a download (12 MB cap for both, under the server-wide mod_security request body limit of 12.5 MB, so no filter change). The type is decided by the file's first bytes. Files are stored as blobs in the poster's repo and referenced from the message record; Parlor serves a file only if a message the viewer can currently see references it, fetched with the viewer's space credential (re-issued if older than 10 s), never cached by the browser.
 - **Testers.** Anyone with a sandbox account can sign in. Testers must be told the sandbox is shared and unencrypted, and that nothing private belongs there.
 - **Clockwork integration.** Clockwork's bot reads Parlor's generic message type and treats messages starting with "DM" as player actions. Parlor does not know about this.
@@ -76,6 +76,8 @@ Out of scope until beta: broader UI work, deployment polish, and abstractions ar
 8. After 2026-12-01.
 9. Attachments done. 40/40 end-to-end checks on the hosted site, including a PDF near the 12 MB cap through Apache and mod_security. Codex review: three findings (download slot released before sending, stale credential on downloads, browser cache shared across accounts) fixed; the 10 s credential window is a deliberate trade-off.
 10. Image thumbnails (2026-11-14). The poster's browser draws PNG, JPEG and WebP images at 720 pixels on the long side and uploads that copy (WebP, or JPEG where the browser cannot write WebP; at most 256 KB) with the image's width and height. The chat shows the thumbnail in a box sized before it loads, with the file name and full size below; clicking opens the full file. GIFs and images already small enough get no thumbnail. Older messages show the full image. The thumbnail is served under the same rule as the file. The message lexicon gained optional `thumb`, `width` and `height` and was republished. 46/46 end-to-end checks.
+11. Image preview before sending, and drag and drop onto the open chat (2026-11-14).
+12. Reactions (2026-11-14). Record `com.cruftmanor.parlor.reaction` (`subject` = Parlor message URI, `emoji`, `createdAt`) in the reacting member's repo; removing a reaction deletes the record. Palette of 16: 👍 👎 ❤️ 😂 😮 😢 😡 🎉 🔥 💯 🎲 ⚔️ 🛡️ 💀 🐉 💰 (matched with or without U+FE0F). Counted once per author, emoji and message; only from current writers, only on shown messages. Chips under each message (yours highlighted, names on hover), "+" opens the palette. The space declaration now lists both collections. A probe showed the sandbox does not check the declaration's collection list on writes, so spaces created before the change take reactions. The sign-in scope gained the reaction collection, so existing sign-ins must sign in again to react. 57/57 end-to-end checks.
 
 ## Open items (2026-11-14)
 
@@ -86,7 +88,7 @@ Out of scope until beta: broader UI work, deployment polish, and abstractions ar
 
 ## Future work
 
-- **Reaction emoji.** Let members react to a message with an emoji. Spaces has no reaction feature, so a reaction would be its own record type (for example `com.cruftmanor.parlor.reaction`, holding the message URI and the emoji) written into the reacting member's repo and counted under the message. Needs: the lexicon published, the sign-in scope extended to that collection (everyone signs in again once), and a way to remove one's own reaction. Not designed or tested.
+- None listed.
 
 ## Rules
 

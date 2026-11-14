@@ -215,11 +215,86 @@ function renderMessages(messages) {
     li.append(head)
     if (m.text) li.append(el('div', m.text, 'text'))
     if (m.file) li.append(cachedFileElement(m, used))
+    li.append(reactionRow(m))
     return li
   }))
   for (const k of [...fileNodes.keys()]) if (!used.has(k)) fileNodes.delete(k)
   if (atBottom || current.version <= 1) list.scrollTop = list.scrollHeight
 }
+
+// ---------- reactions ----------
+
+// Chips under a message ("👍 2"), highlighted when one is yours; click to
+// add or remove yours. The "+" button opens the palette.
+function reactionRow(m) {
+  const row = el('div', undefined, 'reactions')
+  const mine = new Set()
+  for (const r of m.reactions ?? []) {
+    if (r.mine) mine.add(r.emoji)
+    const b = el('button', `${r.emoji} ${r.count}`, r.mine ? 'react mine' : 'react')
+    b.type = 'button'
+    b.setAttribute('aria-pressed', String(r.mine))
+    const more = r.count - r.by.length
+    b.title = r.by.join(', ') + (more > 0 ? ` and ${more} more` : '')
+    b.addEventListener('click', () => react(m.uri, r.emoji, !r.mine))
+    row.append(b)
+  }
+  const add = el('button', '+', 'react-add')
+  add.type = 'button'
+  add.title = 'Add a reaction'
+  add.setAttribute('aria-label', 'Add a reaction')
+  add.addEventListener('click', (ev) => {
+    ev.stopPropagation()
+    openPalette(add, m.uri, mine)
+  })
+  row.append(add)
+  return row
+}
+
+async function react(message, emoji, on) {
+  closePalette()
+  if (!me?.canReact) return flash('Sign out and sign in again to allow reactions.')
+  try {
+    await api('/api/space/react', { method: 'POST', body: { uri: current.uri, message, emoji, on } })
+    await poll()
+  } catch (err) {
+    flash(err.message)
+  }
+}
+
+let palette = null
+function closePalette() {
+  if (palette) palette.remove()
+  palette = null
+}
+function openPalette(anchor, message, mine) {
+  const wasOpen = palette?.dataset.message === message
+  closePalette()
+  if (wasOpen) return
+  palette = el('div', undefined, 'palette')
+  palette.dataset.message = message
+  palette.setAttribute('role', 'menu')
+  for (const e of me?.reactions ?? []) {
+    const b = el('button', e, mine.has(e) ? 'mine' : undefined)
+    b.type = 'button'
+    b.setAttribute('role', 'menuitem')
+    b.addEventListener('click', () => react(message, e, !mine.has(e)))
+    palette.append(b)
+  }
+  document.body.append(palette)
+  const r = anchor.getBoundingClientRect()
+  const w = palette.offsetWidth
+  const left = Math.max(8, Math.min(r.left + window.scrollX, window.scrollX + document.documentElement.clientWidth - w - 8))
+  palette.style.left = `${left}px`
+  palette.style.top = `${r.bottom + window.scrollY + 4}px`
+  palette.querySelector('button')?.focus()
+}
+document.addEventListener('click', (ev) => {
+  if (palette && !palette.contains(ev.target)) closePalette()
+})
+document.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Escape') closePalette()
+})
 
 function fmtSize(n) {
   if (n < 1024) return `${n} B`

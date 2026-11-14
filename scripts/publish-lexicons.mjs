@@ -4,7 +4,7 @@
 // DNS must also have TXT _lexicon.<authority domain> = "did=<publisher DID>".
 //
 // Env: PDS_URL, PUBLISHER_HANDLE, PUBLISHER_APP_PASSWORD,
-//      SPACE_TYPE, MESSAGE_COLLECTION (defaults: com.cruftmanor.parlor.*)
+//      SPACE_TYPE, MESSAGE_COLLECTION, REACTION_COLLECTION (defaults: com.cruftmanor.parlor.*)
 // Usage: node scripts/publish-lexicons.mjs [--dry-run]
 
 import { readFileSync } from 'node:fs'
@@ -13,6 +13,7 @@ const env = process.env
 const PDS = (env.PDS_URL ?? '').replace(/\/$/, '')
 const SPACE_TYPE = env.SPACE_TYPE ?? 'com.cruftmanor.parlor.space'
 const MESSAGE = env.MESSAGE_COLLECTION ?? 'com.cruftmanor.parlor.message'
+const REACTION = env.REACTION_COLLECTION ?? 'com.cruftmanor.parlor.reaction'
 const DRY = process.argv.includes('--dry-run')
 
 function load(file, id, replacements) {
@@ -23,10 +24,15 @@ function load(file, id, replacements) {
   return lex
 }
 
-const subs = { 'com.cruftmanor.parlor.space': SPACE_TYPE, 'com.cruftmanor.parlor.message': MESSAGE }
+const subs = {
+  'com.cruftmanor.parlor.space': SPACE_TYPE,
+  'com.cruftmanor.parlor.message': MESSAGE,
+  'com.cruftmanor.parlor.reaction': REACTION,
+}
 const docs = [
   load('space.json', SPACE_TYPE, subs),
   load('message.json', MESSAGE, subs),
+  load('reaction.json', REACTION, subs),
 ]
 
 if (DRY) {

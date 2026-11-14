@@ -121,6 +121,38 @@ function cleanDate(s) {
   return Number.isFinite(d) ? new Date(d).toISOString() : null
 }
 
+// ---------- reactions ----------
+
+// The emoji a reaction may use, in display order. Compared without the
+// emoji variation selector (U+FE0F), which clients add or omit.
+export const REACTION_EMOJI = [
+  '👍', '👎', '❤️', '😂', '😮', '😢', '😡', '🎉',
+  '🔥', '💯', '🎲', '⚔️', '🛡️', '💀', '🐉', '💰',
+]
+const bareEmoji = (s) => String(s).replace(/\uFE0F/g, '')
+const EMOJI_BY_BARE = new Map(REACTION_EMOJI.map((e) => [bareEmoji(e), e]))
+
+// The palette form of an emoji, or null if it is not in the palette.
+export function paletteEmoji(s) {
+  return typeof s === 'string' && s.length <= 16 ? EMOJI_BY_BARE.get(bareEmoji(s)) ?? null : null
+}
+
+// The URI Parlor uses for a message: at://<author>/<collection>/<rkey>.
+export function messageUri(repo, rkey) {
+  return `at://${repo}/${config.messageCollection}/${rkey}`
+}
+
+// { subject, emoji } from a reaction record, or null. The subject must be a
+// Parlor message URI; the emoji must be in the palette.
+export function reactionFromRecord(value) {
+  if (!value || typeof value !== 'object') return null
+  const emoji = paletteEmoji(value.emoji)
+  const subject = typeof value.subject === 'string' ? value.subject : ''
+  const m = subject.match(/^at:\/\/(did:[a-z]+:[A-Za-z0-9._:%-]{1,2048})\/([a-zA-Z0-9.-]{1,317})\/([A-Za-z0-9._~:-]{1,512})$/)
+  if (!emoji || !m || m[2] !== config.messageCollection) return null
+  return { subject, emoji }
+}
+
 // A message needs text, an attachment, or both. An attachment that fails
 // validation is dropped; the message then needs text to be shown.
 export function messageFromRecord(value, max = config.maxMessageLength) {
@@ -150,6 +182,7 @@ export class SpaceView {
     this.writers = new Set()
     this.since = new Map() // repo -> rev
     this.messages = new Map() // `${repo}/${rkey}` -> message
+    this.reactions = new Map() // `${repo}/${rkey}` -> { author, rkey, subject, emoji, seq }
     this.version = 0
     this.lastSync = 0
     this.lastSweep = 0
@@ -225,6 +258,9 @@ export class SpaceView {
     for (const k of [...this.messages.keys()]) {
       if (k.startsWith(`${did}/`)) this.messages.delete(k)
     }
+    for (const k of [...this.reactions.keys()]) {
+      if (k.startsWith(`${did}/`)) this.reactions.delete(k)
+    }
     this.version++
   }
 
@@ -265,6 +301,10 @@ export class SpaceView {
     let changed = false
     for (const op of ops) {
       if (op.rev && (!this.since.get(repo) || op.rev > this.since.get(repo))) this.since.set(repo, op.rev)
+      if (op.collection === config.reactionCollection) {
+        changed = this.applyReaction(repo, op.rkey, op.cid == null ? null : op.value) || changed
+        continue
+      }
       if (op.collection !== config.messageCollection) continue
       const key = `${repo}/${op.rkey}`
       if (op.cid == null) {
@@ -295,6 +335,49 @@ export class SpaceView {
       for (const [k] of sorted.slice(0, this.messages.size - config.maxMessagesPerView)) this.messages.delete(k)
     }
     if (changed) this.version++
+  }
+
+  // Add (value) or remove (null) one reaction record. Returns whether the
+  // view changed. Also used right after the viewer's own write, so the
+  // change shows before the next sync.
+  applyReaction(repo, rkey, value) {
+    const key = `${repo}/${rkey}`
+    if (value === null) return this.reactions.delete(key)
+    const r = reactionFromRecord(value)
+    if (!r) return this.reactions.delete(key)
+    this.reactions.set(key, { author: repo, rkey, subject: r.subject, emoji: r.emoji, seq: this.seq++ })
+    if (this.reactions.size > config.maxReactionsPerView) {
+      const sorted = [...this.reactions.entries()].sort((a, b) => a[1].seq - b[1].seq)
+      for (const [k] of sorted.slice(0, this.reactions.size - config.maxReactionsPerView)) this.reactions.delete(k)
+    }
+    return true
+  }
+
+  // Reactions on the messages shown, by message URI:
+  // Map(uri -> [{ emoji, authors: [did] }]) in palette order. Each author
+  // counts once per emoji per message.
+  reactionSummary() {
+    const shown = new Set([...this.messages.values()].map((m) => m.uri))
+    const by = new Map()
+    for (const r of this.reactions.values()) {
+      if (!shown.has(r.subject) || !this.writers.has(r.author)) continue
+      if (!by.has(r.subject)) by.set(r.subject, new Map())
+      const e = by.get(r.subject)
+      if (!e.has(r.emoji)) e.set(r.emoji, new Set())
+      e.get(r.emoji).add(r.author)
+    }
+    const out = new Map()
+    for (const [uri, e] of by) {
+      out.set(uri, REACTION_EMOJI.filter((x) => e.has(x)).map((x) => ({ emoji: x, authors: [...e.get(x)] })))
+    }
+    return out
+  }
+
+  // The rkeys of this author's reaction records for one message and emoji.
+  ownReactions(did, subject, emoji) {
+    return [...this.reactions.values()]
+      .filter((r) => r.author === did && r.subject === subject && r.emoji === emoji)
+      .map((r) => r.rkey)
   }
 
   async readRepo(repo) {
@@ -388,6 +471,21 @@ export async function postMessage(session, space, text, attachment = null) {
   }
   return asUser(session, 'com.atproto.space.createRecord', {
     body: { space: space.uri, repo: session.did, collection: config.messageCollection, record },
+  })
+}
+
+// Write a reaction record into the user's own repo. Returns its rkey and value.
+export async function addReaction(session, space, subject, emoji) {
+  const value = { $type: config.reactionCollection, subject, emoji, createdAt: new Date().toISOString() }
+  const out = await asUser(session, 'com.atproto.space.createRecord', {
+    body: { space: space.uri, repo: session.did, collection: config.reactionCollection, record: value },
+  })
+  return { rkey: String(out.uri ?? '').split('/').pop(), value }
+}
+
+export async function deleteReaction(session, space, rkey) {
+  await asUser(session, 'com.atproto.space.deleteRecord', {
+    body: { space: space.uri, repo: session.did, collection: config.reactionCollection, rkey },
   })
 }
 

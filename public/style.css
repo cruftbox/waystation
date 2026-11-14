@@ -94,6 +94,24 @@ label.attach {
 label.attach input { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
 label.attach:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
 .msg-file { margin-top: 4px; }
+.reactions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.reactions button {
+  font-size: 14px; line-height: 1.2; padding: 2px 8px; border-radius: 12px;
+  background: var(--panel); color: var(--text); border: 1px solid var(--line);
+}
+.reactions button.mine { border-color: var(--accent); background: var(--mine); }
+.reactions .react-add { color: var(--muted); padding: 2px 9px; }
+.palette {
+  position: absolute; z-index: 10; display: grid; grid-template-columns: repeat(8, 34px); gap: 2px;
+  padding: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+.palette button {
+  font-size: 20px; line-height: 1; padding: 6px 0; background: transparent; color: var(--text);
+  border: 1px solid transparent; border-radius: 6px;
+}
+.palette button:hover, .palette button:focus { background: var(--mine); }
+.palette button.mine { border-color: var(--accent); }
 .msg-file img {
   display: block; max-width: min(100%, 360px); max-height: 280px; border-radius: 6px;
   border: 1px solid var(--line); background: var(--bg);

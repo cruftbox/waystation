@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 
 process.env.SPACE_TYPE = 'com.example.parlor.space'
 process.env.MESSAGE_COLLECTION = 'com.example.parlor.message'
+process.env.REACTION_COLLECTION = 'com.example.parlor.reaction'
 process.env.MAX_MESSAGE_LENGTH = '10'
 process.env.MAX_MESSAGES_PER_VIEW = '3'
 process.env.PARLOR_ENV_FILE = '/nonexistent'
@@ -265,4 +266,55 @@ test('scopes request upload permission and canUpload reads it', () => {
   assert.equal(canUpload('atproto space:x?authority=*'), false)
   assert.equal(canUpload('atproto blob:image/png'), false)
   assert.equal(canUpload('atproto blob:*/*'), true)
+})
+
+// ---------- reactions ----------
+
+const { reactionFromRecord, paletteEmoji, REACTION_EMOJI } = await import('../../src/spaces.js')
+const { canReact } = await import('../../src/oauth.js')
+const MSG = (rkey) => `at://${OWNER}/com.example.parlor.message/${rkey}`
+
+test('palette has 16 emoji and matches with or without the variation selector', () => {
+  assert.equal(REACTION_EMOJI.length, 16)
+  assert.equal(paletteEmoji('❤'), '❤️')
+  assert.equal(paletteEmoji('❤️'), '❤️')
+  assert.equal(paletteEmoji('🦄'), null)
+  assert.equal(paletteEmoji(5), null)
+})
+
+test('reactionFromRecord needs a Parlor message subject and a palette emoji', () => {
+  assert.deepEqual(reactionFromRecord({ subject: MSG('r1'), emoji: '👍' }), { subject: MSG('r1'), emoji: '👍' })
+  assert.equal(reactionFromRecord({ subject: MSG('r1'), emoji: '🦄' }), null)
+  assert.equal(reactionFromRecord({ subject: `at://${OWNER}/app.bsky.feed.post/r1`, emoji: '👍' }), null)
+  assert.equal(reactionFromRecord({ subject: 'https://example.com', emoji: '👍' }), null)
+  assert.equal(reactionFromRecord(null), null)
+})
+
+test('reactions are counted once per author and emoji, only on shown messages, only from writers', () => {
+  const v = view()
+  v.writers.add(OWNER)
+  v.writers.add(OTHER)
+  v.applyOps(OWNER, [op('r1', '1', { text: 'hi', createdAt: '2026-01-01T00:00:01Z' })])
+  const rx = (rkey, emoji, subject = MSG('r1')) => ({
+    collection: 'com.example.parlor.reaction', rkey, rev: '2', cid: 'bafy', value: { subject, emoji },
+  })
+  v.applyOps(OTHER, [rx('a', '👍'), rx('b', '👍'), rx('c', '🎲'), rx('d', '👍', MSG('gone'))])
+  v.applyOps(OWNER, [rx('e', '👍')])
+  let s = v.reactionSummary().get(MSG('r1'))
+  assert.deepEqual(s.map((r) => [r.emoji, r.authors.length]), [['👍', 2], ['🎲', 1]])
+  assert.equal(v.reactionSummary().has(MSG('gone')), false)
+  assert.deepEqual(v.ownReactions(OTHER, MSG('r1'), '👍').sort(), ['a', 'b'])
+  // Deleting a record removes it; removing a writer hides theirs.
+  v.applyOps(OWNER, [{ collection: 'com.example.parlor.reaction', rkey: 'e', rev: '3', cid: null }])
+  s = v.reactionSummary().get(MSG('r1'))
+  assert.equal(s.find((r) => r.emoji === '👍').authors.length, 1)
+  v.writers.delete(OTHER)
+  v.dropRepo(OTHER)
+  assert.equal(v.reactionSummary().has(MSG('r1')), false)
+})
+
+test('member scope includes the reaction collection and canReact reads it', () => {
+  const { member } = scopes()
+  assert.equal(canReact(member), true)
+  assert.equal(canReact('atproto space:com.example.parlor.space?authority=*&collection=com.example.parlor.message'), false)
 })

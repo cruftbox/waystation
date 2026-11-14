@@ -13,7 +13,7 @@ import { FILE_TYPES } from './files.js'
 // The client metadata declares both, since a request must be a subset.
 // Both also request upload permission for the attachment types.
 export function scopes() {
-  const chat = `space:${config.spaceType}?authority=*&collection=${config.messageCollection}`
+  const chat = `space:${config.spaceType}?authority=*&collection=${config.messageCollection}&collection=${config.reactionCollection}`
   const manage = `space:${config.spaceType}?authority=*&manage=create&manage=update`
   const upload = `blob?${[...FILE_TYPES].sort().map((t) => `accept=${t}`).join('&')}`
   return {
@@ -29,6 +29,12 @@ export function canUpload(granted) {
   if (!blob) return false
   if (blob === 'blob:*/*') return true
   return FILE_TYPES.every((t) => blob.includes(t))
+}
+
+// Whether a granted scope string allows writing reactions.
+export function canReact(granted) {
+  return String(granted ?? '').split(' ').some((s) => s.startsWith(`space:${config.spaceType}?`)
+    && s.split(/[?&]/).includes(`collection=${config.reactionCollection}`))
 }
 
 export const callbackPath = '/oauth/callback'

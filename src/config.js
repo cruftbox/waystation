@@ -38,11 +38,13 @@ export const config = {
   // (com.atproto.lexicon.schema record + _lexicon DNS TXT) or OAuth fails.
   spaceType: env.SPACE_TYPE ?? 'com.cruftmanor.parlor.space',
   messageCollection: env.MESSAGE_COLLECTION ?? 'com.cruftmanor.parlor.message',
+  reactionCollection: env.REACTION_COLLECTION ?? 'com.cruftmanor.parlor.reaction',
 
   // Message length cap in characters (graphemes are close enough for a cap).
   maxMessageLength: int('MAX_MESSAGE_LENGTH', 1000),
   // Messages kept in memory per open space view.
   maxMessagesPerView: int('MAX_MESSAGES_PER_VIEW', 500),
+  maxReactionsPerView: int('MAX_REACTIONS_PER_VIEW', 5000),
   // Seconds between full sweeps of all active writers (safety net).
   fullSweepSeconds: int('FULL_SWEEP_SECONDS', 60),
   // Minimum seconds between syncs for the same user and space.
@@ -57,6 +59,7 @@ export const config = {
   requestsPerMinute: int('REQUESTS_PER_MINUTE', 240),
   manageActionsPerMinute: int('MANAGE_PER_MINUTE', 30),
   uploadsPerMinute: int('UPLOADS_PER_MINUTE', 5),
+  reactionsPerMinute: int('REACTIONS_PER_MINUTE', 30),
   // Attachment size caps in bytes. Both stay under the server-wide
   // mod_security request body limit (12.5 MB) on cruftmanor.com.
   maxImageBytes: int('MAX_IMAGE_BYTES', 12 * 1024 * 1024),

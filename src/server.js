@@ -7,10 +7,10 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { config, isLoopback } from './config.js'
 import { openDb, makeCipher, purgeExpired } from './db.js'
-import { makeOAuthClient, clientMetadata, scopes, callbackPath, canUpload } from './oauth.js'
+import { makeOAuthClient, clientMetadata, scopes, callbackPath, canUpload, canReact } from './oauth.js'
 import { resolveHandle, displayHandle, isDid, sweepCaches } from './identity.js'
 import {
-  SpaceView, XrpcError, parseSpaceUri, postMessage, uploadBlob, createSpace, listMembers, addMember, removeMember,
+  SpaceView, XrpcError, parseSpaceUri, postMessage, uploadBlob, addReaction, deleteReaction, paletteEmoji, REACTION_EMOJI, createSpace, listMembers, addMember, removeMember,
 } from './spaces.js'
 import { sniffMime, maxBytesFor, maxFileBytes, cleanFileName, isImage, contentDisposition, THUMB_TYPES, MAX_DIMENSION } from './files.js'
 import { RateLimiter, RateLimitError } from './ratelimit.js'
@@ -172,6 +172,8 @@ async function thumbFromForm(form) {
 const MAX_UPLOADS_IN_FLIGHT = 2
 const MAX_DOWNLOADS_IN_FLIGHT = 6
 const FILE_CRED_MAX_AGE_MS = 10000
+// Names listed per reaction (shown on hover).
+const MAX_REACTOR_NAMES = 20
 const inFlight = { upload: 0, download: 0 }
 async function withSlot(kind, max, fn) {
   if (inFlight[kind] >= max) throw new HttpError(503, 'Busy', 'Parlor is busy with other files; try again shortly.')
@@ -463,6 +465,8 @@ async function route(req, res) {
       csrf: ws.csrf,
       maxMessageLength: config.maxMessageLength,
       canUpload: canUpload(scope),
+      canReact: canReact(scope),
+      reactions: REACTION_EMOJI,
       maxImageBytes: config.maxImageBytes,
       maxPdfBytes: config.maxPdfBytes,
     })
@@ -562,7 +566,9 @@ async function route(req, res) {
     }
     if (since === view.version) return send(res, 200, { ...base, unchanged: true })
     const messages = view.list()
-    const handles = await withHandles(messages.map((m) => m.author))
+    const reactions = view.reactionSummary()
+    const reactors = [...reactions.values()].flatMap((list) => list.flatMap((r) => r.authors.slice(0, MAX_REACTOR_NAMES)))
+    const handles = await withHandles([...messages.map((m) => m.author), ...reactors])
     return send(res, 200, {
       ...base,
       messages: messages.map((m) => ({
@@ -571,6 +577,12 @@ async function route(req, res) {
         mine: m.author === did,
         text: m.text,
         createdAt: m.createdAt,
+        reactions: (reactions.get(m.uri) ?? []).map((r) => ({
+          emoji: r.emoji,
+          count: r.authors.length,
+          mine: r.authors.includes(did),
+          by: r.authors.slice(0, MAX_REACTOR_NAMES).map((a) => handles[a]),
+        })),
         file: m.attachment ? {
           url: fileUrl(space.uri, m.author, m.attachment.cid),
           thumbUrl: m.attachment.thumb ? fileUrl(space.uri, m.author, m.attachment.thumb.cid) : null,
@@ -671,6 +683,40 @@ async function route(req, res) {
       log('file posted', did, space.uri, mime, bytes.length, attachment.thumb ? `thumb ${extra.thumb.bytes.length}` : 'no thumb')
       return send(res, 200, { uri: out.uri })
     })
+  }
+
+  if (method === 'POST' && path === '/api/space/react') {
+    limiter.hit(`react:${did}`, config.reactionsPerMinute)
+    if (!canReact(await grantedScope(session))) {
+      throw new HttpError(403, 'NeedReactSignIn', 'Sign out and sign in again to allow reactions.')
+    }
+    const body = await readJson(req)
+    const space = spaceFromInput(body.uri)
+    const emoji = paletteEmoji(body.emoji)
+    if (!emoji) throw new HttpError(400, 'BadEmoji', 'That reaction is not available.')
+    const subject = String(body.message ?? '')
+    const on = body.on === true
+    const v = viewFor(session, space)
+    await v.sync()
+    if (![...v.messages.values()].some((m) => m.uri === subject)) {
+      throw new HttpError(404, 'MessageNotFound', 'That message is not in this space.')
+    }
+    // Same membership check as posting: a cached credential outlives removal.
+    v.cred = null
+    await v.credential()
+    const own = v.ownReactions(did, subject, emoji)
+    if (on && !own.length) {
+      const { rkey, value } = await addReaction(session, space, subject, emoji)
+      if (rkey) v.applyReaction(did, rkey, value)
+    } else if (!on) {
+      for (const rkey of own) {
+        await deleteReaction(session, space, rkey)
+        v.applyReaction(did, rkey, null)
+      }
+    }
+    v.version++
+    v.lastSync = 0
+    return send(res, 200, { ok: true })
   }
 
   if (method === 'POST' && path === '/api/space/message') {

@@ -6,8 +6,8 @@
       "type": "space",
       "key": "tid",
       "title": "Parlor chat room",
-      "description": "A chat room in Parlor. Members post text messages into their own repos in the space.",
-      "collections": ["com.cruftmanor.parlor.message"]
+      "description": "A chat room in Parlor. Members post messages and reactions into their own repos in the space.",
+      "collections": ["com.cruftmanor.parlor.message", "com.cruftmanor.parlor.reaction"]
     }
   }
 }

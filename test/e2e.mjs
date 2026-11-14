@@ -388,6 +388,50 @@ try {
   check('UI shows the PDF as a link', pdfLink.startsWith('PDF: Test Module.pdf'), pdfLink)
   await A.page.screenshot({ path: (process.env.SCREENSHOT ?? 'test/e2e-owner.png').replace(/\.png$/, '-files.png'), fullPage: true })
 
+  // Reactions: member reacts to the owner's message; owner sees it; toggles;
+  // refusals; then the owner reacts from the page's palette.
+  check('sign-ins allow reactions', A.me.canReact === true && B.me.canReact === true && A.me.reactions?.length === 16)
+  const stateA = async () => (await call(A, `/api/space?uri=${encodeURIComponent(space)}`)).data.messages ?? []
+  const ownerMsg = (await stateA()).find((m) => m.text === 'Hello from the owner.')
+  const reactB = (emoji, on, message = ownerMsg?.uri) => call(B, '/api/space/react', { method: 'POST', body: { uri: space, message, emoji, on } })
+  const rOn = await reactB('🎲', true)
+  const rDup = await reactB('🎲', true)
+  check('member reacts (twice counts once)', rOn.status === 200 && rDup.status === 200, `${rOn.status} ${rDup.status} ${rOn.data.message ?? ''}`)
+  const seenRx = await waitFor('owner sees reaction', async () => {
+    const m = (await stateA()).find((x) => x.uri === ownerMsg.uri)
+    const r = m?.reactions?.find((x) => x.emoji === '🎲')
+    return r && r.count === 1 && !r.mine && r.by[0] === member.handle ? r : null
+  })
+  check('owner sees the reaction with the member named', seenRx.ok, `${seenRx.ms} ms`)
+  const rWithout = await reactB('❤', true) // no variation selector
+  const rOff = await reactB('❤️', false)
+  const goneRx = await waitFor('heart removed', async () => {
+    const m = (await stateA()).find((x) => x.uri === ownerMsg.uri)
+    return m && !m.reactions.some((x) => x.emoji === '❤️') ? true : null
+  })
+  check('reaction removed by toggling off', rWithout.status === 200 && rOff.status === 200 && goneRx.ok, `${rWithout.status} ${rOff.status} ${goneRx.ms} ms`)
+  const rBad = await reactB('🦄', true)
+  check('emoji outside the palette refused', rBad.status === 400 && rBad.data.error === 'BadEmoji', `${rBad.status} ${rBad.data.error}`)
+  const rNoMsg = await reactB('👍', true, `at://${A.me.did}/${ownerMsg.uri.split('/')[3]}/3zzzzzzzzzzzz`)
+  check('reaction to a message not in the space refused', rNoMsg.status === 404, `${rNoMsg.status} ${rNoMsg.data.error}`)
+  // Page: open the palette on the owner's message and pick the dragon.
+  const uiRx = await waitFor('UI palette', async () => A.page.evaluate(async () => {
+    const li = [...document.querySelectorAll('#messages li.msg')].find((x) => x.querySelector('.text')?.textContent === 'Hello from the owner.')
+    if (!li) return null
+    li.querySelector('.react-add').click()
+    const pick = [...document.querySelectorAll('.palette button')].find((b) => b.textContent === '🐉')
+    if (!pick) return null
+    pick.click()
+    for (let i = 0; i < 40; i++) {
+      await new Promise((r) => setTimeout(r, 250))
+      const cur = [...document.querySelectorAll('#messages li.msg')].find((x) => x.querySelector('.text')?.textContent === 'Hello from the owner.')
+      const chips = [...(cur?.querySelectorAll('.reactions button.react') ?? [])].map((b) => [b.textContent, b.classList.contains('mine')])
+      if (chips.some(([t, mine]) => t === '🐉 1' && mine) && chips.some(([t]) => t === '🎲 1')) return { chips, palette: !!document.querySelector('.palette') }
+    }
+    return null
+  }), 30000)
+  check('owner reacts from the palette; chips show counts', uiRx.ok && uiRx.v.palette === false, JSON.stringify(uiRx.v?.chips ?? null))
+
   // Removal: owner removes member; member's messages disappear for owner;
   // member loses access.
   const rm = await call(A, '/api/space/members', { method: 'POST', body: { uri: space, action: 'remove', did: B.me.did } })
@@ -397,6 +441,9 @@ try {
     return r.data.messages && !r.data.messages.some((m) => m.text.startsWith('Hello from the member.'))
   })
   check("removed member's messages hidden from owner", hidden.ok, `${hidden.ms} ms`)
+  const rxHidden = (await stateA()).find((m) => m.uri === ownerMsg.uri)?.reactions ?? []
+  check("removed member's reactions hidden", !rxHidden.some((r) => r.emoji === '🎲') && rxHidden.some((r) => r.emoji === '🐉'),
+    JSON.stringify(rxHidden.map((r) => [r.emoji, r.count])))
   const bPost = await call(B, '/api/space/message', { method: 'POST', body: { uri: space, text: 'Still here?' } })
   check('removed member cannot post', bPost.status === 403, `${bPost.status} ${bPost.data.error}`)
   const bRead = await waitFor('B loses read', async () => {
