@@ -333,7 +333,14 @@ try {
     input.dispatchEvent(new Event('change'))
     document.getElementById('post-text').value = 'Big map.'
   })
+  const preview = await waitFor('preview', async () => A.page.evaluate(() => {
+    const img = document.getElementById('file-preview-img')
+    return !document.getElementById('file-preview').hidden && img.complete && img.naturalWidth === 1600
+  }))
+  check('chosen image is previewed before sending', preview.ok, `${preview.ms} ms`)
   await A.page.click('#post-form button[type=submit]')
+  const cleared = await waitFor('preview cleared', async () => A.page.evaluate(() => document.getElementById('file-preview').hidden))
+  check('preview clears after sending', cleared.ok, `${cleared.ms} ms`)
   const thumbSeen = await waitFor('thumb message', async () => (await call(A, `/api/space?uri=${encodeURIComponent(space)}`))
     .data.messages?.find((m) => m.text === 'Big map.' && m.file?.thumbUrl))
   const tf = thumbSeen.v?.file

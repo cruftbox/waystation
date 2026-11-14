@@ -288,10 +288,26 @@ function fileKind(file) {
   return null
 }
 
+// Preview of the chosen image before sending, from a local object URL.
+let previewUrl = null
+function showPreview(file) {
+  hidePreview()
+  previewUrl = URL.createObjectURL(file)
+  $('file-preview-img').src = previewUrl
+  $('file-preview').hidden = false
+}
+function hidePreview() {
+  $('file-preview').hidden = true
+  $('file-preview-img').removeAttribute('src')
+  if (previewUrl) URL.revokeObjectURL(previewUrl)
+  previewUrl = null
+}
+
 function clearFile() {
   $('post-file').value = ''
   $('file-name').hidden = true
   $('file-clear').hidden = true
+  hidePreview()
 }
 
 $('post-file').addEventListener('change', () => {
@@ -315,6 +331,8 @@ $('post-file').addEventListener('change', () => {
   $('file-name').textContent = `${file.name} (${fmtSize(file.size)})`
   $('file-name').hidden = false
   $('file-clear').hidden = false
+  if (kind === 'image') showPreview(file)
+  else hidePreview()
 })
 
 $('file-clear').addEventListener('click', clearFile)

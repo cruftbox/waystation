@@ -58,7 +58,7 @@ class HttpError extends Error {
 
 function securityHeaders(res) {
   res.setHeader('Content-Security-Policy',
-    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; "
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; "
     + "frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'")
   res.setHeader('X-Content-Type-Options', 'nosniff')
   res.setHeader('Referrer-Policy', 'no-referrer')
