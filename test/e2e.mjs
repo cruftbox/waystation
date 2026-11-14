@@ -355,6 +355,35 @@ try {
     return !!img && img.complete && img.naturalWidth === 720 && img.parentElement.href !== img.src
   }, tf?.thumbUrl))
   check('UI shows the thumbnail and links the full image', shown.ok, `${shown.ms} ms`)
+  // Drag and drop: synthetic drag events on a child of the chat panel.
+  const dropped = await A.page.evaluate(async () => {
+    const c = document.createElement('canvas')
+    c.width = 50
+    c.height = 40
+    const blob = await new Promise((r) => c.toBlob(r, 'image/png'))
+    const dt = new DataTransfer()
+    dt.items.add(new File([blob], 'dropped.png', { type: 'image/png' }))
+    dt.items.add(new File(['x'], 'second.pdf', { type: 'application/pdf' }))
+    const target = document.getElementById('messages')
+    const fire = (type) => target.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: dt }))
+    fire('dragenter')
+    const highlighted = document.getElementById('chat').classList.contains('dropping')
+    fire('dragover')
+    const handled = !fire('drop') // dispatchEvent returns false when the default was prevented
+    await new Promise((r) => setTimeout(r, 300))
+    const out = {
+      highlighted,
+      handled,
+      cleared: !document.getElementById('chat').classList.contains('dropping'),
+      name: document.getElementById('file-name').textContent,
+      preview: !document.getElementById('file-preview').hidden,
+      note: document.getElementById('flash').textContent,
+    }
+    document.getElementById('file-clear').click()
+    return out
+  })
+  check('dropped file is attached and previewed', dropped.highlighted && dropped.handled && dropped.cleared
+    && dropped.name.startsWith('dropped.png') && dropped.preview && dropped.note.startsWith('One file per message'), JSON.stringify(dropped))
   const pdfLink = await A.page.locator('#messages a.pdf', { hasText: 'Test Module.pdf' }).innerText().catch(() => '')
   check('UI shows the PDF as a link', pdfLink.startsWith('PDF: Test Module.pdf'), pdfLink)
   await A.page.screenshot({ path: (process.env.SCREENSHOT ?? 'test/e2e-owner.png').replace(/\.png$/, '-files.png'), fullPage: true })

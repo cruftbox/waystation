@@ -101,6 +101,7 @@ label.attach:focus-within { outline: 2px solid var(--accent); outline-offset: 2p
 .msg-file img[style*="aspect-ratio"] { height: auto; max-height: none; }
 .file-caption { margin-top: 2px; overflow-wrap: anywhere; }
 .file-preview { margin-top: 6px; }
+#chat.dropping { outline: 2px dashed var(--accent); outline-offset: 4px; border-radius: 6px; }
 .file-preview img {
   display: block; max-width: min(100%, 240px); max-height: 160px; border-radius: 6px;
   border: 1px solid var(--line); background: var(--bg);

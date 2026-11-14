@@ -337,6 +337,51 @@ $('post-file').addEventListener('change', () => {
 
 $('file-clear').addEventListener('click', clearFile)
 
+// Drag and drop: a file dropped on the open chat goes into the Attach
+// field and is handled as if chosen there (checks, preview, thumbnail).
+const hasFiles = (ev) => [...(ev.dataTransfer?.types ?? [])].includes('Files')
+let dragDepth = 0 // enter/leave fire for every child crossed
+function endDrag() {
+  dragDepth = 0
+  $('chat').classList.remove('dropping')
+}
+$('chat').addEventListener('dragenter', (ev) => {
+  if (!hasFiles(ev)) return
+  ev.preventDefault()
+  dragDepth++
+  $('chat').classList.add('dropping')
+})
+$('chat').addEventListener('dragover', (ev) => {
+  if (!hasFiles(ev)) return
+  ev.preventDefault()
+  ev.dataTransfer.dropEffect = 'copy'
+})
+$('chat').addEventListener('dragleave', (ev) => {
+  if (!hasFiles(ev)) return
+  if (--dragDepth <= 0) endDrag()
+})
+$('chat').addEventListener('drop', (ev) => {
+  if (!hasFiles(ev)) return
+  ev.preventDefault()
+  endDrag()
+  const files = ev.dataTransfer.files
+  if (!files.length) return
+  const dt = new DataTransfer()
+  dt.items.add(files[0])
+  $('post-file').files = dt.files
+  $('post-file').dispatchEvent(new Event('change'))
+  if (files.length > 1 && $('post-file').files.length) flash('One file per message: the first one is attached.')
+})
+// A file dropped anywhere else would make the browser open it in place of Parlor.
+for (const type of ['dragover', 'drop']) {
+  window.addEventListener(type, (ev) => {
+    if (hasFiles(ev) && !$('chat').contains(ev.target)) {
+      ev.preventDefault()
+      if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'none'
+    }
+  })
+}
+
 // Thumbnails: made here, before upload, for PNG, JPEG and WebP. GIFs are
 // left alone (a redrawn GIF loses its animation), as are images already
 // small enough to show as they are.
