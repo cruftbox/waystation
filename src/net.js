@@ -83,8 +83,9 @@ export function checkUrl(urlString) {
 }
 
 // Minimal fetch: GET or POST, no redirects, timeout, size cap.
-// Returns { ok, status, headers: Headers, text }.
-export function safeFetch(urlString, { method = 'GET', headers = {}, body, timeoutMs = 15000, maxBytes = MAX_RESPONSE_BYTES } = {}) {
+// Returns { ok, status, headers: Headers, text, buffer }. With binary: true
+// the body is not decoded and text is set only for error responses.
+export function safeFetch(urlString, { method = 'GET', headers = {}, body, timeoutMs = 15000, maxBytes = MAX_RESPONSE_BYTES, binary = false } = {}) {
   const url = checkUrl(urlString)
   const insecure = config.allowInsecureHosts && url.protocol === 'http:'
   const doRequest = insecure ? httpRequest : httpsRequest
@@ -112,7 +113,10 @@ export function safeFetch(urlString, { method = 'GET', headers = {}, body, timeo
           else if (v !== undefined) h.set(k, String(v))
         }
         const status = res.statusCode ?? 0
-        resolve({ ok: status >= 200 && status < 300, status, headers: h, text: Buffer.concat(chunks).toString('utf8') })
+        const ok = status >= 200 && status < 300
+        const buffer = Buffer.concat(chunks)
+        const text = binary && ok ? '' : buffer.toString('utf8')
+        resolve({ ok, status, headers: h, text, buffer })
       })
       res.on('error', reject)
     })

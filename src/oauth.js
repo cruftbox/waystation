@@ -6,17 +6,29 @@ import { NodeOAuthClient, buildAtprotoLoopbackClientMetadata } from '@atproto/oa
 import { requestLocalLock } from '@atproto/oauth-client'
 import { config, isLoopback } from './config.js'
 import { kvStore } from './db.js'
+import { FILE_TYPES } from './files.js'
 
 // Two scope tokens: chat (read and post messages) and manage (create spaces,
 // add and remove members). Members request only chat; hosts request both.
 // The client metadata declares both, since a request must be a subset.
+// Both also request upload permission for the attachment types.
 export function scopes() {
   const chat = `space:${config.spaceType}?authority=*&collection=${config.messageCollection}`
   const manage = `space:${config.spaceType}?authority=*&manage=create&manage=update`
+  const upload = `blob?${[...FILE_TYPES].sort().map((t) => `accept=${t}`).join('&')}`
   return {
-    member: `atproto ${chat}`,
-    owner: `atproto ${chat} ${manage}`,
+    member: `atproto ${chat} ${upload}`,
+    owner: `atproto ${chat} ${upload} ${manage}`,
   }
+}
+
+// Whether a granted scope string includes upload permission for every
+// attachment type.
+export function canUpload(granted) {
+  const blob = String(granted ?? '').split(' ').find((s) => s === 'blob' || s.startsWith('blob:') || s.startsWith('blob?'))
+  if (!blob) return false
+  if (blob === 'blob:*/*') return true
+  return FILE_TYPES.every((t) => blob.includes(t))
 }
 
 export const callbackPath = '/oauth/callback'

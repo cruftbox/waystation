@@ -14,7 +14,8 @@ All Parlor code lives in this repository. Clockwork-specific code, such as the b
 - **Target.** Build against the Spaces alpha sandbox (`https://spaces-alpha.host.bsky.network`) now. The public beta starts 2026-12-01 with an updated PDS and an official SDK; expect rework then.
 - **Finding a space (revised 2026-11-14).** The first decision (a player enters a space owner's handle and Parlor lists that owner's spaces) does not work for a newly added member (see Known facts). Replacement, decided by the user: Parlor keeps a directory of the spaces created and members added through it, and a member sees those spaces after signing in. Any other space opens from an invite link that the owner copies in Parlor; the link carries the space URI and works only for members. There are no join requests: in a memberspace only the owner adds members.
 - **Owner tools.** The owner of a space can create spaces and add or remove members by handle in Parlor.
-- **Chat scope.** Plain text with a length cap; messages ordered by time with the author's handle; updates every few seconds. No editing, deleting, reactions or attachments.
+- **Chat scope.** Plain text with a length cap; messages ordered by time with the author's handle; updates every few seconds. No editing, deleting or reactions.
+- **Attachments (added 2026-11-14).** One file per message: PNG, JPEG, GIF or WebP shown inline (5 MB cap), or a PDF offered as a download (12 MB cap, under the server-wide mod_security request body limit of 12.5 MB, so no filter change). The type is decided by the file's first bytes. Files are stored as blobs in the poster's repo and referenced from the message record; Parlor serves a file only if a message the viewer can currently see references it, fetched with the viewer's space credential (re-issued if older than 10 s), never cached by the browser.
 - **Testers.** Anyone with a sandbox account can sign in. Testers must be told the sandbox is shared and unencrypted, and that nothing private belongs there.
 - **Clockwork integration.** Clockwork's bot reads Parlor's generic message type and treats messages starting with "DM" as player actions. Parlor does not know about this.
 
@@ -73,6 +74,7 @@ Out of scope until beta: broader UI work, deployment polish, and abstractions ar
 6. Done (same test).
 7. Done in code (size, rate and count limits, sandbox notice). Codex reviewed the code and found 10 issues (1 high, 5 medium, 4 low); all were fixed. Outside testers can sign in.
 8. After 2026-12-01.
+9. Attachments done. 40/40 end-to-end checks on the hosted site, including a PDF near the 12 MB cap through Apache and mod_security. Codex review: three findings (download slot released before sending, stale credential on downloads, browser cache shared across accounts) fixed; the 10 s credential window is a deliberate trade-off.
 
 ## Rules
 

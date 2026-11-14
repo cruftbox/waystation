@@ -12,6 +12,7 @@
 // using app passwords.
 
 import { readFileSync } from 'node:fs'
+import { deflateSync } from 'node:zlib'
 import { chromium } from 'playwright-core'
 
 const envFile = process.env.SANDBOX_ENV ?? new URL('../../clockwork-conductor/spaces-sandbox-test/.env', import.meta.url)
@@ -80,6 +81,84 @@ async function call(u, path, { method = 'GET', body, csrf = true } = {}) {
     try { data = await r.json() } catch { /* empty */ }
     return { status: r.status, data }
   }, { path, method, body, csrf, token: u.me.csrf })
+}
+
+// Multipart upload from inside the user's page.
+async function uploadFile(u, { uri, text, name, type, bytes }) {
+  return u.page.evaluate(async ({ uri, text, name, type, b64, token }) => {
+    const bin = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
+    const form = new FormData()
+    form.append('uri', uri)
+    form.append('text', text)
+    form.append('file', new File([bin], name, { type }))
+    const r = await fetch('/api/space/upload', { method: 'POST', body: form, headers: { 'x-csrf-token': token } })
+    let data = {}
+    try { data = await r.json() } catch { /* empty */ }
+    return { status: r.status, data }
+  }, { uri, text, name, type, b64: bytes.toString('base64'), token: u.me.csrf })
+}
+
+async function getFile(u, url) {
+  if (!url) return { status: 0, type: '', disp: '', b64: '' }
+  return u.page.evaluate(async (url) => {
+    // Bypass the browser cache so the server's access check is what's tested.
+    const r = await fetch(url, { cache: 'no-store' })
+    const buf = new Uint8Array(await r.arrayBuffer())
+    let s = ''
+    for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode(...buf.subarray(i, i + 0x8000))
+    return { status: r.status, type: r.headers.get('content-type') ?? '', disp: r.headers.get('content-disposition') ?? '', b64: btoa(s) }
+  }, url)
+}
+
+// 2x2 red PNG.
+function tinyPng() {
+  const crcTable = Array.from({ length: 256 }, (_, n) => {
+    let c = n
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
+    return c >>> 0
+  })
+  const crc = (buf) => {
+    let c = 0xffffffff
+    for (const b of buf) c = crcTable[(c ^ b) & 0xff] ^ (c >>> 8)
+    return (c ^ 0xffffffff) >>> 0
+  }
+  const chunk = (type, data) => {
+    const len = Buffer.alloc(4)
+    len.writeUInt32BE(data.length)
+    const td = Buffer.concat([Buffer.from(type), data])
+    const c = Buffer.alloc(4)
+    c.writeUInt32BE(crc(td))
+    return Buffer.concat([len, td, c])
+  }
+  const ihdr = Buffer.alloc(13)
+  ihdr.writeUInt32BE(2, 0)
+  ihdr.writeUInt32BE(2, 4)
+  ihdr[8] = 8 // bit depth
+  ihdr[9] = 2 // RGB
+  const raw = Buffer.from([0, 255, 0, 0, 255, 0, 0, 0, 255, 0, 0, 255, 0, 0])
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0)),
+  ])
+}
+
+// One-page PDF with placeholder text.
+function tinyPdf() {
+  const stream = 'BT /F1 12 Tf 20 50 Td (Parlor test module) Tj ET'
+  const objs = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 100] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ]
+  let out = '%PDF-1.4\n'
+  const offs = []
+  objs.forEach((o, i) => { offs.push(out.length); out += `${i + 1} 0 obj\n${o}\nendobj\n` })
+  const xref = out.length
+  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n` + offs.map((o) => `${String(o).padStart(10, '0')} 00000 n \n`).join('')
+  out += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`
+  return Buffer.from(out, 'latin1')
 }
 
 async function waitFor(label, fn, timeoutMs = 45000) {
@@ -192,6 +271,50 @@ try {
   const uiSeen = await waitFor('UI post', async () => (await A.page.locator('#messages').innerText()).includes('Posted from the page.'))
   check('owner posts from the page and sees it', uiSeen.ok, `${uiSeen.ms} ms`)
 
+  // Attachments: member posts an image, owner posts a PDF.
+  check('both sign-ins allow uploads', A.me.canUpload === true && B.me.canUpload === true)
+  const png = tinyPng()
+  const pdf = tinyPdf()
+  const upB = await uploadFile(B, { uri: space, text: 'A map.', name: 'map.png', type: 'image/png', bytes: png })
+  check('member attaches a PNG', upB.status === 200, `${upB.status} ${upB.data.error ?? ''} ${upB.data.message ?? ''}`)
+  const upA = await uploadFile(A, { uri: space, text: '', name: 'Test Module.pdf', type: 'application/pdf', bytes: pdf })
+  check('owner attaches a PDF with no text', upA.status === 200, `${upA.status} ${upA.data.error ?? ''} ${upA.data.message ?? ''}`)
+  const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>')
+  const upSvg = await uploadFile(A, { uri: space, text: '', name: 'evil.png', type: 'image/png', bytes: svg })
+  check('SVG renamed .png refused', upSvg.status === 415, `${upSvg.status} ${upSvg.data.error}`)
+  const big = Buffer.concat([png.subarray(0, 8), Buffer.alloc(A.me.maxImageBytes + 1 - 8)])
+  const upBig = await uploadFile(A, { uri: space, text: '', name: 'big.png', type: 'image/png', bytes: big })
+  check('oversized image refused', upBig.status === 413, `${upBig.status} ${upBig.data.error}`)
+  // A PDF just under the cap, to exercise the proxy and request filters.
+  const nearMax = Buffer.concat([pdf, Buffer.alloc(A.me.maxPdfBytes - pdf.length - 1024, 0x20)])
+  const upNear = await uploadFile(A, { uri: space, text: 'Large file.', name: 'large.pdf', type: 'application/pdf', bytes: nearMax })
+  check(`PDF near the ${Math.round(A.me.maxPdfBytes / 1048576)} MB cap accepted`, upNear.status === 200,
+    `${upNear.status} ${upNear.data.error ?? ''} ${upNear.data.message ?? ''}`)
+
+  const fileMsg = (r, kind) => (r.data.messages ?? []).find((m) => m.file?.kind === kind)
+  const aSees = await waitFor('A sees the PNG', async () => fileMsg(await call(A, `/api/space?uri=${encodeURIComponent(space)}`), 'image'))
+  const bSees = await waitFor('B sees the PDF', async () => fileMsg(await call(B, `/api/space?uri=${encodeURIComponent(space)}`), 'pdf'))
+  check('owner sees the image message', aSees.ok && aSees.v.text === 'A map.' && aSees.v.file.name === 'map.png', `${aSees.ms} ms`)
+  check('member sees the PDF message', bSees.ok && bSees.v.file.name === 'Test Module.pdf' && bSees.v.file.size === pdf.length, `${bSees.ms} ms`)
+  const pngUrl = aSees.v?.file.url
+  const pdfUrl = bSees.v?.file.url
+  const gotPng = await getFile(A, pngUrl)
+  check('owner downloads the image unchanged', gotPng.status === 200 && gotPng.type === 'image/png'
+    && Buffer.from(gotPng.b64, 'base64').equals(png), `${gotPng.status} ${gotPng.type}`)
+  const gotPdf = await getFile(B, pdfUrl)
+  check('member downloads the PDF unchanged, as a download', gotPdf.status === 200 && gotPdf.type === 'application/pdf'
+    && gotPdf.disp.startsWith('attachment;') && Buffer.from(gotPdf.b64, 'base64').equals(pdf), `${gotPdf.status} ${gotPdf.type} ${gotPdf.disp}`)
+  const badCid = await getFile(A, pngUrl?.replace(/cid=[^&]+/, 'cid=bafkreiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'))
+  check('file not in the space is refused', badCid.status === 404, `${badCid.status}`)
+  const imgOk = await waitFor('UI image', async () => A.page.evaluate(() => {
+    const img = document.querySelector('#messages .msg-file img')
+    return !!img && img.complete && img.naturalWidth === 2
+  }))
+  check('UI shows the image inline', imgOk.ok, `${imgOk.ms} ms`)
+  const pdfLink = await A.page.locator('#messages a.pdf').innerText().catch(() => '')
+  check('UI shows the PDF as a link', pdfLink.startsWith('PDF: Test Module.pdf'), pdfLink)
+  await A.page.screenshot({ path: (process.env.SCREENSHOT ?? 'test/e2e-owner.png').replace(/\.png$/, '-files.png'), fullPage: true })
+
   // Removal: owner removes member; member's messages disappear for owner;
   // member loses access.
   const rm = await call(A, '/api/space/members', { method: 'POST', body: { uri: space, action: 'remove', did: B.me.did } })
@@ -208,6 +331,10 @@ try {
     return r.status === 403
   }, 90000)
   check('removed member loses read access', bRead.ok, `${bRead.ms} ms`)
+  const bFile = await getFile(B, pdfUrl)
+  check('removed member cannot download files', bFile.status === 403, `${bFile.status}`)
+  const aOld = await getFile(A, pngUrl)
+  check("removed member's image no longer served", aOld.status === 404, `${aOld.status}`)
   const bList2 = await call(B, '/api/spaces')
   check('space no longer under "Member of"', !bList2.data.member?.some((s) => s.uri === space))
 

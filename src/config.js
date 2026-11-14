@@ -56,6 +56,11 @@ export const config = {
   postsPerMinute: int('POSTS_PER_MINUTE', 20),
   requestsPerMinute: int('REQUESTS_PER_MINUTE', 240),
   manageActionsPerMinute: int('MANAGE_PER_MINUTE', 30),
+  uploadsPerMinute: int('UPLOADS_PER_MINUTE', 5),
+  // Attachment size caps in bytes. PDFs stay under the server-wide
+  // mod_security request body limit (12.5 MB) on cruftmanor.com.
+  maxImageBytes: int('MAX_IMAGE_BYTES', 5 * 1024 * 1024),
+  maxPdfBytes: int('MAX_PDF_BYTES', 12 * 1024 * 1024),
   // Spaces a single user may create through Parlor.
   maxSpacesPerOwner: int('MAX_SPACES_PER_OWNER', 20),
 

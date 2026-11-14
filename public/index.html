@@ -79,8 +79,18 @@
       <p id="chat-warning" class="small warn" hidden></p>
       <ol id="messages"></ol>
       <form id="post-form">
-        <textarea id="post-text" rows="2" placeholder="Write a message" required></textarea>
-        <div class="post-row"><span id="count" class="small"></span><button type="submit">Send</button></div>
+        <textarea id="post-text" rows="2" placeholder="Write a message"></textarea>
+        <div class="post-row">
+          <div class="attach-row">
+            <label id="attach-label" class="attach" title="Attach an image (PNG, JPEG, GIF, WebP) or a PDF">Attach
+              <input id="post-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp,application/pdf,.png,.jpg,.jpeg,.gif,.webp,.pdf">
+            </label>
+            <span id="file-name" class="small" hidden></span>
+            <button id="file-clear" type="button" class="link" hidden>Remove</button>
+            <span id="count" class="small"></span>
+          </div>
+          <button type="submit">Send</button>
+        </div>
       </form>
     </section>
     <section id="empty" class="card">

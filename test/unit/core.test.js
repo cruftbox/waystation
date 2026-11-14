@@ -28,7 +28,7 @@ test('parseSpaceUri accepts space URIs and rejects others', () => {
 
 test('messageFromRecord cleans, caps and rejects', () => {
   assert.deepEqual(messageFromRecord({ text: ' hi\u0007 ', createdAt: '2026-11-14T10:00:00Z' }),
-    { text: 'hi', createdAt: '2026-11-14T10:00:00.000Z' })
+    { text: 'hi', createdAt: '2026-11-14T10:00:00.000Z', attachment: null })
   assert.equal(messageFromRecord({ text: '0123456789abc' }).text, '0123456789…')
   assert.equal(messageFromRecord({ text: '' }), null)
   assert.equal(messageFromRecord({ text: 5 }), null)
@@ -158,4 +158,84 @@ test('RateLimiter', () => {
   r.hit('k', 2)
   assert.throws(() => r.hit('k', 2), RateLimitError)
   r.hit('other', 2)
+})
+
+// ---------- attachments ----------
+
+const { sniffMime, cleanFileName, attachmentFromRecord, contentDisposition, maxBytesFor } = await import('../../src/files.js')
+const { scopes, canUpload } = await import('../../src/oauth.js')
+
+const CID = 'bafkreiaxzdx6sd37xbkctelbhk4h6uexasawpax3mv2mtq6gzxf55iokja'
+const blobRef = (mimeType, size = 100) => ({ $type: 'blob', ref: { $link: CID }, mimeType, size })
+const pad = (bytes) => Buffer.concat([Buffer.from(bytes), Buffer.alloc(16)])
+
+test('sniffMime recognises the five types by content only', () => {
+  assert.equal(sniffMime(pad([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])), 'image/png')
+  assert.equal(sniffMime(pad([0xff, 0xd8, 0xff, 0xe0])), 'image/jpeg')
+  assert.equal(sniffMime(pad([...Buffer.from('GIF89a')])), 'image/gif')
+  assert.equal(sniffMime(pad([...Buffer.from('RIFF\0\0\0\0WEBPVP8 ')])), 'image/webp')
+  assert.equal(sniffMime(pad([...Buffer.from('%PDF-1.4')])), 'application/pdf')
+  assert.equal(sniffMime(pad([...Buffer.from('<svg xmlns="http://www.w3.org/2000/svg">')])), null)
+  assert.equal(sniffMime(pad([...Buffer.from('<html><script>')])), null)
+  assert.equal(sniffMime(pad([...Buffer.from('RIFF\0\0\0\0WAVEfmt ')])), null)
+  assert.equal(sniffMime(Buffer.from('%PDF')), null)
+})
+
+test('cleanFileName strips unsafe characters and falls back', () => {
+  assert.equal(cleanFileName('../../etc/passwd', 'application/pdf'), 'etcpasswd')
+  assert.equal(cleanFileName('a"b\c<d>.pdf', 'application/pdf'), 'abcd.pdf')
+  assert.equal(cleanFileName('', 'image/png'), 'file.png')
+  assert.equal(cleanFileName(null, 'image/jpeg'), 'file.jpg')
+  assert.equal([...cleanFileName('x'.repeat(500), 'image/png')].length, 200)
+  assert.equal(cleanFileName('line\nbreak.png', 'image/png'), 'linebreak.png')
+})
+
+test('attachmentFromRecord validates blob refs', () => {
+  assert.deepEqual(attachmentFromRecord({ file: blobRef('image/png'), name: 'map.png' }),
+    { cid: CID, mime: 'image/png', size: 100, name: 'map.png' })
+  assert.equal(attachmentFromRecord({ file: blobRef('image/svg+xml') }), null)
+  assert.equal(attachmentFromRecord({ file: blobRef('text/html') }), null)
+  assert.equal(attachmentFromRecord({ file: { ...blobRef('image/png'), ref: { $link: 'not a cid' } } }), null)
+  assert.equal(attachmentFromRecord({ file: { ...blobRef('image/png'), $type: 'other' } }), null)
+  assert.equal(attachmentFromRecord({ file: blobRef('image/png', maxBytesFor('image/png') + 1) }), null)
+  assert.equal(attachmentFromRecord({ file: blobRef('application/pdf', maxBytesFor('application/pdf')) }).mime, 'application/pdf')
+  assert.equal(attachmentFromRecord({ file: blobRef('image/png', 0) }), null)
+  assert.equal(attachmentFromRecord(null), null)
+  assert.equal(attachmentFromRecord({ file: blobRef('application/pdf') }).name, 'file.pdf')
+})
+
+test('messageFromRecord accepts a file with empty text, and drops bad files', () => {
+  const m = messageFromRecord({ text: '', attachment: { file: blobRef('image/gif'), name: 'x.gif' }, createdAt: '2026-11-14T10:00:00Z' })
+  assert.equal(m.text, '')
+  assert.equal(m.attachment.mime, 'image/gif')
+  assert.equal(messageFromRecord({ text: '', attachment: { file: blobRef('image/svg+xml') } }), null)
+  assert.equal(messageFromRecord({ text: 'hi', attachment: { file: blobRef('image/svg+xml') } }).attachment, null)
+})
+
+test('applyOps keeps attachments and findAttachment checks author and CID', () => {
+  const v = view()
+  v.writers.add(OTHER)
+  v.applyOps(OTHER, [op('1', 'r1', { text: '', attachment: { file: blobRef('application/pdf'), name: 'mod.pdf' }, createdAt: '2026-01-01T00:00:01Z' })])
+  assert.equal(v.findAttachment(OTHER, CID).name, 'mod.pdf')
+  assert.equal(v.findAttachment(OWNER, CID), null)
+  assert.equal(v.findAttachment(OTHER, 'bafkreiother'), null)
+  v.dropRepo(OTHER)
+  assert.equal(v.findAttachment(OTHER, CID), null)
+})
+
+test('contentDisposition quotes safely', () => {
+  assert.equal(contentDisposition('attachment', 'Tomb of Annihilation.pdf'),
+    `attachment; filename="Tomb of Annihilation.pdf"; filename*=UTF-8''Tomb%20of%20Annihilation.pdf`)
+  assert.match(contentDisposition('inline', 'café;%.png'), /^inline; filename="caf___.png"; filename\*=UTF-8''caf%C3%A9%3B%25\.png$/)
+})
+
+test('scopes request upload permission and canUpload reads it', () => {
+  const { member, owner } = scopes()
+  const blob = 'blob?accept=application/pdf&accept=image/gif&accept=image/jpeg&accept=image/png&accept=image/webp'
+  assert.ok(member.split(' ').includes(blob))
+  assert.ok(owner.split(' ').includes(blob))
+  assert.equal(canUpload(member), true)
+  assert.equal(canUpload('atproto space:x?authority=*'), false)
+  assert.equal(canUpload('atproto blob:image/png'), false)
+  assert.equal(canUpload('atproto blob:*/*'), true)
 })

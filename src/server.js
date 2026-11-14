@@ -7,11 +7,12 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { config, isLoopback } from './config.js'
 import { openDb, makeCipher, purgeExpired } from './db.js'
-import { makeOAuthClient, clientMetadata, scopes, callbackPath } from './oauth.js'
+import { makeOAuthClient, clientMetadata, scopes, callbackPath, canUpload } from './oauth.js'
 import { resolveHandle, displayHandle, isDid, sweepCaches } from './identity.js'
 import {
-  SpaceView, XrpcError, parseSpaceUri, postMessage, createSpace, listMembers, addMember, removeMember,
+  SpaceView, XrpcError, parseSpaceUri, postMessage, uploadBlob, createSpace, listMembers, addMember, removeMember,
 } from './spaces.js'
+import { sniffMime, maxBytesFor, maxFileBytes, cleanFileName, isImage, contentDisposition } from './files.js'
 import { RateLimiter, RateLimitError } from './ratelimit.js'
 
 const log = (...a) => console.log(new Date().toISOString(), ...a)
@@ -114,6 +115,47 @@ async function readJson(req) {
     return v
   } catch {
     throw new HttpError(400, 'BadJson')
+  }
+}
+
+// multipart/form-data upload, read whole with a cap (largest file plus room
+// for the other fields), then parsed by the built-in form parser.
+async function readForm(req) {
+  const type = String(req.headers['content-type'] ?? '')
+  if (!type.startsWith('multipart/form-data')) throw new HttpError(415, 'UnsupportedMediaType')
+  const cap = maxFileBytes() + 64 * 1024
+  if (Number(req.headers['content-length'] ?? 0) > cap) throw new HttpError(413, 'FileTooLarge', tooLargeMessage())
+  let size = 0
+  const chunks = []
+  for await (const chunk of req) {
+    size += chunk.length
+    if (size > cap) throw new HttpError(413, 'FileTooLarge', tooLargeMessage())
+    chunks.push(chunk)
+  }
+  try {
+    return await new Response(Buffer.concat(chunks), { headers: { 'content-type': type } }).formData()
+  } catch {
+    throw new HttpError(400, 'BadForm')
+  }
+}
+
+const mb = (n) => `${Math.round((n / (1024 * 1024)) * 10) / 10} MB`
+function tooLargeMessage() {
+  return `Images are limited to ${mb(config.maxImageBytes)} and PDFs to ${mb(config.maxPdfBytes)}.`
+}
+
+// File transfers held in memory at once, server-wide.
+const MAX_UPLOADS_IN_FLIGHT = 2
+const MAX_DOWNLOADS_IN_FLIGHT = 6
+const FILE_CRED_MAX_AGE_MS = 10000
+const inFlight = { upload: 0, download: 0 }
+async function withSlot(kind, max, fn) {
+  if (inFlight[kind] >= max) throw new HttpError(503, 'Busy', 'Parlor is busy with other files; try again shortly.')
+  inFlight[kind]++
+  try {
+    return await fn()
+  } finally {
+    inFlight[kind]--
   }
 }
 
@@ -291,6 +333,9 @@ const UPSTREAM_MESSAGE = 'A server Parlor depends on could not be reached or ret
 function explain(err) {
   if (err instanceof HttpError) return err
   if (err instanceof XrpcError) {
+    if (err.status === 403 && err.error === 'ScopeMissingError' && err.method === 'com.atproto.repo.uploadBlob') {
+      return new HttpError(403, 'NeedUploadSignIn', 'Sign out and sign in again to allow attaching files.')
+    }
     if (err.status === 403 && err.error === 'ScopeMissingError') {
       return new HttpError(403, 'NeedOwnerSignIn', 'Your sign-in does not allow this. Sign in again with "I want to host spaces" checked.')
     }
@@ -393,6 +438,9 @@ async function route(req, res) {
       host: ws.host && scope.includes('manage=create'),
       csrf: ws.csrf,
       maxMessageLength: config.maxMessageLength,
+      canUpload: canUpload(scope),
+      maxImageBytes: config.maxImageBytes,
+      maxPdfBytes: config.maxPdfBytes,
     })
   }
 
@@ -490,8 +538,103 @@ async function route(req, res) {
     return send(res, 200, {
       ...base,
       messages: messages.map((m) => ({
-        uri: m.uri, author: handles[m.author], mine: m.author === did, text: m.text, createdAt: m.createdAt,
+        uri: m.uri,
+        author: handles[m.author],
+        mine: m.author === did,
+        text: m.text,
+        createdAt: m.createdAt,
+        file: m.attachment ? {
+          url: `/api/space/file?${new URLSearchParams({ uri: space.uri, repo: m.author, cid: m.attachment.cid })}`,
+          kind: isImage(m.attachment.mime) ? 'image' : 'pdf',
+          mime: m.attachment.mime,
+          size: m.attachment.size,
+          name: m.attachment.name,
+        } : null,
       })),
+    })
+  }
+
+  if (method === 'GET' && path === '/api/space/file') {
+    const space = spaceFromInput(url.searchParams.get('uri'))
+    const repo = String(url.searchParams.get('repo') ?? '')
+    const cid = String(url.searchParams.get('cid') ?? '')
+    if (!isDid(repo)) throw new HttpError(400, 'BadRepo')
+    const view = viewFor(session, space)
+    try {
+      await view.sync()
+    } catch (err) {
+      if (explain(err).code === 'NoAccess') views.delete(`${did} ${space.uri}`)
+      throw err
+    }
+    const att = view.findAttachment(repo, cid)
+    if (!att) throw new HttpError(404, 'FileNotFound', 'That file is not in this space.')
+    // A credential outlives removal, so prove membership with one issued in
+    // the last few seconds (the page fetches each file once per load).
+    if (!view.cred || Date.now() - view.cred.issuedAt > FILE_CRED_MAX_AGE_MS) {
+      view.cred = null
+      try {
+        await view.credential()
+      } catch (err) {
+        if (explain(err).code === 'NoAccess') views.delete(`${did} ${space.uri}`)
+        throw err
+      }
+    }
+    // The slot is held until the response has been sent or the client has
+    // gone, so slow readers cannot pile up buffered files.
+    return withSlot('download', MAX_DOWNLOADS_IN_FLIGHT, async () => {
+      // Listen before fetching, so a client that leaves early still frees the slot.
+      const closed = new Promise((resolve) => {
+        if (res.destroyed || res.writableFinished) resolve()
+        else res.once('close', resolve)
+      })
+      const bytes = await view.fetchBlob(repo, cid, maxBytesFor(att.mime))
+      // Serve only what the bytes really are, and only if that matches the record.
+      if (sniffMime(bytes) !== att.mime) {
+        log('file type mismatch', space.uri, repo, cid)
+        throw new HttpError(502, 'BadFile', 'That file is not the type it claims to be.')
+      }
+      res.statusCode = 200
+      res.setHeader('Content-Type', att.mime)
+      res.setHeader('Content-Length', bytes.length)
+      res.setHeader('Content-Disposition', contentDisposition(isImage(att.mime) ? 'inline' : 'attachment', att.name))
+      // No browser caching: the cache is not tied to the Parlor sign-in, so
+      // another account on the same browser could reuse it.
+      res.setHeader('Cache-Control', 'private, no-store')
+      res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox")
+      res.end(bytes)
+      await closed
+    })
+  }
+
+  if (method === 'POST' && path === '/api/space/upload') {
+    limiter.hit(`post:${did}`, config.postsPerMinute)
+    limiter.hit(`upload:${did}`, config.uploadsPerMinute)
+    if (!canUpload(await grantedScope(session))) {
+      throw new HttpError(403, 'NeedUploadSignIn', 'Sign out and sign in again to allow attaching files.')
+    }
+    return withSlot('upload', MAX_UPLOADS_IN_FLIGHT, async () => {
+      const form = await readForm(req)
+      const space = spaceFromInput(form.get('uri'))
+      const text = String(form.get('text') ?? '').replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, '').trim()
+      if ([...text].length > config.maxMessageLength) {
+        throw new HttpError(400, 'TooLong', `Messages are limited to ${config.maxMessageLength} characters.`)
+      }
+      const file = form.get('file')
+      if (!file || typeof file === 'string') throw new HttpError(400, 'NoFile', 'Choose a file to attach.')
+      const bytes = Buffer.from(await file.arrayBuffer())
+      const mime = sniffMime(bytes)
+      if (!mime) throw new HttpError(415, 'BadFileType', 'Only PNG, JPEG, GIF, WebP and PDF files can be attached.')
+      if (bytes.length > maxBytesFor(mime)) throw new HttpError(413, 'FileTooLarge', tooLargeMessage())
+      const name = cleanFileName(file.name, mime)
+      // Same membership check as text messages.
+      const v = viewFor(session, space)
+      v.cred = null
+      await v.credential()
+      const blob = await uploadBlob(session, bytes, mime)
+      const out = await postMessage(session, space, text, { blob, name })
+      v.lastSync = 0
+      log('file posted', did, space.uri, mime, bytes.length)
+      return send(res, 200, { uri: out.uri })
     })
   }
 
@@ -578,7 +721,8 @@ const server = createServer(async (req, res) => {
     if (!res.headersSent) send(res, x.status, { error: x.code, message: x.message })
   }
 })
-server.requestTimeout = 60000
+// Long enough for a 12 MB upload on a slow connection.
+server.requestTimeout = 180000
 server.headersTimeout = 15000
 
 setInterval(() => {

@@ -10,8 +10,32 @@
         "type": "object",
         "required": ["text", "createdAt"],
         "properties": {
-          "text": { "type": "string", "maxLength": 10000, "maxGraphemes": 1000 },
+          "text": {
+            "type": "string",
+            "maxLength": 10000,
+            "maxGraphemes": 1000,
+            "description": "Message text. May be empty when an attachment is present."
+          },
+          "attachment": { "type": "ref", "ref": "#attachment" },
           "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    },
+    "attachment": {
+      "type": "object",
+      "description": "One file attached to a message. Images are shown inline; PDFs are offered as downloads.",
+      "required": ["file"],
+      "properties": {
+        "file": {
+          "type": "blob",
+          "accept": ["image/png", "image/jpeg", "image/gif", "image/webp", "application/pdf"],
+          "maxSize": 12582912
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 1000,
+          "maxGraphemes": 200,
+          "description": "Original file name, for display and download."
         }
       }
     }

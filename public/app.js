@@ -141,6 +141,7 @@ async function openSpace(uri, name) {
   flash()
   stopPolling()
   current = { uri, name, version: -1, isOwner: false }
+  fileNodes.clear()
   $('empty').hidden = true
   $('chat').hidden = false
   $('chat-name').textContent = name || 'Space'
@@ -202,17 +203,126 @@ function renderMessages(messages) {
   const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 40
   if (!messages.length) {
     list.replaceChildren(el('li', 'No messages yet.', 'small'))
+    fileNodes.clear()
     return
   }
+  const used = new Set()
   list.replaceChildren(...messages.map((m) => {
     const li = el('li', undefined, m.mine ? 'msg mine' : 'msg')
     const head = el('div', undefined, 'msg-head')
     head.append(el('span', m.author, 'author'), el('time', shortTime(m.createdAt), 'small'))
     head.lastChild.dateTime = m.createdAt
-    li.append(head, el('div', m.text, 'text'))
+    li.append(head)
+    if (m.text) li.append(el('div', m.text, 'text'))
+    if (m.file) li.append(cachedFileElement(m, used))
     return li
   }))
+  for (const k of [...fileNodes.keys()]) if (!used.has(k)) fileNodes.delete(k)
   if (atBottom || current.version <= 1) list.scrollTop = list.scrollHeight
+}
+
+function fmtSize(n) {
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`
+}
+
+// Images inline (click opens full size); PDFs as a download link. URLs and
+// names come from the Parlor server; names are set as text only.
+function fileElement(f) {
+  const box = el('div', undefined, 'msg-file')
+  if (f.kind === 'image') {
+    const a = el('a')
+    a.href = f.url
+    a.target = '_blank'
+    a.rel = 'noopener'
+    const img = el('img')
+    img.src = f.url
+    img.alt = f.name
+    img.loading = 'lazy'
+    img.decoding = 'async'
+    a.append(img)
+    box.append(a)
+  } else {
+    const a = el('a', `PDF: ${f.name} (${fmtSize(f.size)})`, 'pdf')
+    a.href = f.url
+    a.download = f.name
+    box.append(a)
+  }
+  return box
+}
+
+// File elements already on the page, by message and file details. Files are
+// served uncached, so reusing the element avoids downloading an image again
+// on every refresh.
+const fileNodes = new Map()
+function cachedFileElement(m, used) {
+  const f = m.file
+  const key = JSON.stringify([m.uri, f.url, f.kind, f.name, f.size])
+  used.add(key)
+  let node = fileNodes.get(key)
+  if (!node) {
+    node = fileElement(f)
+    fileNodes.set(key, node)
+  }
+  return node
+}
+
+const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
+function fileKind(file) {
+  const ext = file.name.toLowerCase().split('.').pop()
+  if (file.type === 'application/pdf' || ext === 'pdf') return 'pdf'
+  if (IMAGE_TYPES.includes(file.type) || ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) return 'image'
+  return null
+}
+
+function clearFile() {
+  $('post-file').value = ''
+  $('file-name').hidden = true
+  $('file-clear').hidden = true
+}
+
+$('post-file').addEventListener('change', () => {
+  const file = $('post-file').files[0]
+  if (!file) return clearFile()
+  if (!me?.canUpload) {
+    clearFile()
+    return flash('Sign out and sign in again to allow attaching files.')
+  }
+  const kind = fileKind(file)
+  if (!kind) {
+    clearFile()
+    return flash('Only PNG, JPEG, GIF, WebP and PDF files can be attached.')
+  }
+  const max = kind === 'pdf' ? me.maxPdfBytes : me.maxImageBytes
+  if (file.size > max) {
+    clearFile()
+    return flash(`That file is ${fmtSize(file.size)}. ${kind === 'pdf' ? 'PDFs' : 'Images'} are limited to ${fmtSize(max)}.`)
+  }
+  flash()
+  $('file-name').textContent = `${file.name} (${fmtSize(file.size)})`
+  $('file-name').hidden = false
+  $('file-clear').hidden = false
+})
+
+$('file-clear').addEventListener('click', clearFile)
+
+async function upload(uri, text, file) {
+  const form = new FormData()
+  form.append('uri', uri)
+  form.append('text', text)
+  form.append('file', file, file.name)
+  const res = await fetch('/api/space/upload', {
+    method: 'POST', body: form, credentials: 'same-origin', headers: { 'x-csrf-token': me.csrf },
+  })
+  let data = {}
+  try { data = await res.json() } catch { /* empty */ }
+  if (!res.ok) {
+    if (res.status === 401) showSignedOut()
+    if (res.status === 413 && !data.message) throw new Error('That file is too large.')
+    throw new Error(data.message || data.error || `HTTP ${res.status}`)
+  }
+  return data
 }
 
 $('post-text').addEventListener('input', updateCount)
@@ -234,12 +344,20 @@ $('post-form').addEventListener('submit', async (ev) => {
   ev.preventDefault()
   if (!current) return
   const text = $('post-text').value.trim()
-  if (!text) return
-  const btn = ev.submitter ?? $('post-form').querySelector('button')
+  const file = $('post-file').files[0]
+  if (!text && !file) return
+  const btn = ev.submitter ?? $('post-form').querySelector('button[type=submit]')
   btn.disabled = true
   flash()
   try {
-    await api('/api/space/message', { method: 'POST', body: { uri: current.uri, text } })
+    if (file) {
+      flash(`Sending ${file.name}…`)
+      await upload(current.uri, text, file)
+      clearFile()
+      flash()
+    } else {
+      await api('/api/space/message', { method: 'POST', body: { uri: current.uri, text } })
+    }
     $('post-text').value = ''
     updateCount()
     await poll()

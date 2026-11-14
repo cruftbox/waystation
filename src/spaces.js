@@ -19,7 +19,8 @@ import {
 } from '@atproto/space'
 import { config } from './config.js'
 import { pdsFor, resolveDid, forgetDid } from './identity.js'
-import { safeFetch, MAX_RESPONSE_BYTES } from './net.js'
+import { safeFetch, checkUrl, MAX_RESPONSE_BYTES } from './net.js'
+import { attachmentFromRecord } from './files.js'
 
 const TIMEOUT_MS = 15000
 const MAX_WRITERS = 200
@@ -120,11 +121,14 @@ function cleanDate(s) {
   return Number.isFinite(d) ? new Date(d).toISOString() : null
 }
 
+// A message needs text, an attachment, or both. An attachment that fails
+// validation is dropped; the message then needs text to be shown.
 export function messageFromRecord(value, max = config.maxMessageLength) {
   if (!value || typeof value !== 'object') return null
   const text = cleanText(value.text, max)
-  if (!text) return null
-  return { text, createdAt: cleanDate(value.createdAt) }
+  const attachment = attachmentFromRecord(value.attachment)
+  if (!text && !attachment) return null
+  return { text: text ?? '', createdAt: cleanDate(value.createdAt), attachment }
 }
 
 // Display order: createdAt, then author DID, then rkey. createdAt is
@@ -167,7 +171,7 @@ export class SpaceView {
       body: { space: this.space.uri, credentialKey: keypair.did(), delegationToken: dt.token },
     })
     const { exp } = parseSpaceToken('credential', body.credential).payload
-    this.cred = { token: body.credential, keypair, exp }
+    this.cred = { token: body.credential, keypair, exp, issuedAt: Date.now() }
     return this.cred
   }
 
@@ -279,6 +283,7 @@ export class SpaceView {
         author: repo,
         rkey: op.rkey,
         text: m.text,
+        attachment: m.attachment,
         createdAt,
       })
       changed = true
@@ -335,19 +340,57 @@ export class SpaceView {
   list() {
     return [...this.messages.values()].sort(compareMessages)
   }
+
+  // The attachment with this CID on a message by this author that the view
+  // currently shows, or null. Serving only these keeps file access tied to
+  // what the viewer can read in this space.
+  findAttachment(repo, cid) {
+    for (const m of this.messages.values()) {
+      if (m.author === repo && m.attachment?.cid === cid) return m.attachment
+    }
+    return null
+  }
+
+  // Download a blob from the author's repo host with this view's credential.
+  async fetchBlob(repo, cid, maxBytes) {
+    const doc = await resolveDid(repo)
+    if (!doc.pds) throw new Error(`${repo} has no PDS endpoint`)
+    checkUrl(doc.pds)
+    const method = 'com.atproto.space.getBlob'
+    const res = await safeFetch(`${doc.pds}/xrpc/${method}${qs({ space: this.space.uri, repo, cid })}`, {
+      headers: await this.signed(repo),
+      timeoutMs: 60000,
+      maxBytes,
+      binary: true,
+    })
+    if (!res.ok) await parse(method, res) // throws XrpcError
+    return res.buffer
+  }
 }
 
 // ---------- user-side operations ----------
 
-export async function postMessage(session, space, text) {
+// attachment: { blob, name } where blob is the ref returned by uploadBlob.
+export async function postMessage(session, space, text, attachment = null) {
+  const record = { $type: config.messageCollection, text, createdAt: new Date().toISOString() }
+  if (attachment) record.attachment = { file: attachment.blob, name: attachment.name }
   return asUser(session, 'com.atproto.space.createRecord', {
-    body: {
-      space: space.uri,
-      repo: session.did,
-      collection: config.messageCollection,
-      record: { $type: config.messageCollection, text, createdAt: new Date().toISOString() },
-    },
+    body: { space: space.uri, repo: session.did, collection: config.messageCollection, record },
   })
+}
+
+// Upload a file to the user's own repo host. The file stays unattached (and
+// is eventually discarded by the host) until a record refers to it.
+export async function uploadBlob(session, bytes, mime) {
+  const method = 'com.atproto.repo.uploadBlob'
+  const res = await session.fetchHandler(`/xrpc/${method}`, {
+    method: 'POST',
+    headers: { 'content-type': mime },
+    body: bytes,
+  })
+  const { body } = await parse(method, res)
+  if (!body.blob?.ref?.$link) throw new XrpcError(method, 502, { error: 'BadResponse' })
+  return body.blob
 }
 
 export async function createSpace(session) {
