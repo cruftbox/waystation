@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Parlor</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header>
+    <h1>Parlor</h1>
+    <div id="who" hidden>
+      <span id="who-handle"></span>
+      <button id="logout" type="button" class="link">Sign out</button>
+    </div>
+  </header>
+
+  <p id="flash" role="alert" hidden></p>
+
+  <main id="signed-out" hidden>
+    <section class="card narrow">
+      <h2>Sign in</h2>
+      <p class="notice">
+        Parlor is a test client for atproto Spaces on the Spaces alpha sandbox.
+        The sandbox is shared and Spaces content is not end-to-end encrypted:
+        the people who run the sandbox can read it. Do not post anything private.
+      </p>
+      <form id="login-form">
+        <label for="handle">Your handle</label>
+        <input id="handle" name="handle" autocomplete="username" placeholder="you.spaces-alpha.bsky.network" required>
+        <label class="check"><input id="owner" type="checkbox"> I want to host spaces (create spaces and manage members)</label>
+        <button type="submit">Sign in</button>
+      </form>
+      <p class="small">You sign in on your own server's page. Parlor never sees your password.</p>
+    </section>
+  </main>
+
+  <main id="signed-in" hidden>
+    <aside id="sidebar">
+      <section>
+        <h2>Hosting</h2>
+        <ul id="owned" class="spaces"></ul>
+        <form id="create-form" hidden>
+          <input id="create-name" maxlength="80" placeholder="New space name" required>
+          <button type="submit">Create</button>
+        </form>
+        <p id="host-hint" class="small" hidden>To host spaces, sign out and sign in again with "I want to host spaces" checked.</p>
+      </section>
+      <section>
+        <h2>Member of</h2>
+        <ul id="member" class="spaces"></ul>
+        <p class="small">Spaces whose owner added you through Parlor.</p>
+      </section>
+      <section>
+        <h2>Opened by link</h2>
+        <ul id="opened" class="spaces"></ul>
+        <form id="open-form">
+          <input id="open-invite" placeholder="Paste an invite link" required>
+          <button type="submit">Open</button>
+        </form>
+      </section>
+    </aside>
+
+    <section id="chat" hidden>
+      <div class="chat-head">
+        <h2 id="chat-name"></h2>
+        <button id="members-toggle" type="button" class="link" hidden>Members</button>
+      </div>
+      <div id="members" class="card" hidden>
+        <ul id="member-list"></ul>
+        <form id="add-form">
+          <input id="add-handle" placeholder="handle to add" required>
+          <button type="submit">Add</button>
+        </form>
+        <p class="small">Invite link (share with members you added):</p>
+        <div class="invite"><input id="invite-link" readonly><button id="copy-invite" type="button">Copy</button></div>
+      </div>
+      <p id="chat-warning" class="small warn" hidden></p>
+      <ol id="messages"></ol>
+      <form id="post-form">
+        <textarea id="post-text" rows="2" placeholder="Write a message" required></textarea>
+        <div class="post-row"><span id="count" class="small"></span><button type="submit">Send</button></div>
+      </form>
+    </section>
+    <section id="empty" class="card">
+      <p>Pick a space on the left, or open one from an invite link.</p>
+    </section>
+  </main>
+</body>
+</html>

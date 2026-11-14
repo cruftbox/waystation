@@ -1,0 +1,95 @@
+:root {
+  --bg: #f6f4ef;
+  --panel: #ffffff;
+  --text: #1f1d1a;
+  --muted: #6b665d;
+  --line: #ddd8cc;
+  --accent: #7a3e2b;
+  --mine: #f3e9e1;
+  --warn: #a33a1f;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1a1816;
+    --panel: #24211e;
+    --text: #ece7de;
+    --muted: #a39d92;
+    --line: #3a3530;
+    --accent: #d99a7c;
+    --mine: #33281f;
+    --warn: #f08a6a;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+input[type=checkbox] { width: auto; margin-top: 3px; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel);
+}
+h1 { font-size: 20px; margin: 0; color: var(--accent); letter-spacing: 0.02em; }
+h2 { font-size: 15px; margin: 0 0 8px; }
+#who { display: flex; gap: 12px; align-items: center; color: var(--muted); }
+#flash { margin: 8px 16px 0; padding: 8px 12px; border: 1px solid var(--line); background: var(--panel); border-radius: 6px; }
+main { flex: 1; display: flex; gap: 16px; padding: 16px; min-height: 0; }
+#signed-out { justify-content: center; align-items: flex-start; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
+.narrow { max-width: 460px; width: 100%; }
+.notice { background: var(--mine); border-radius: 6px; padding: 10px; font-size: 14px; }
+.small { font-size: 13px; color: var(--muted); }
+.warn { color: var(--warn); }
+label { display: block; margin: 10px 0 4px; }
+label.check { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; }
+input, textarea {
+  font: inherit; color: var(--text); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; width: 100%;
+}
+button {
+  font: inherit; cursor: pointer; border: 1px solid var(--accent); background: var(--accent);
+  color: #fff; border-radius: 6px; padding: 6px 12px;
+}
+button:disabled { opacity: 0.6; cursor: default; }
+button.link { background: none; border: none; color: var(--accent); padding: 0; text-decoration: underline; }
+#login-form button { margin-top: 12px; }
+#sidebar { width: 280px; flex-shrink: 0; display: flex; flex-direction: column; gap: 18px; }
+#sidebar form { display: flex; gap: 6px; margin-top: 6px; }
+ul.spaces { list-style: none; margin: 0; padding: 0; }
+ul.spaces li { margin: 2px 0; display: flex; flex-direction: column; }
+button.space {
+  background: none; border: 1px solid transparent; color: var(--text); text-align: left;
+  padding: 5px 8px; width: 100%;
+}
+button.space:hover { border-color: var(--line); }
+button.space.active { background: var(--mine); border-color: var(--line); }
+#chat, #empty { flex: 1; min-width: 0; }
+#chat { display: flex; flex-direction: column; min-height: 0; max-height: calc(100vh - 90px); }
+.chat-head { display: flex; justify-content: space-between; align-items: baseline; }
+#members { margin-bottom: 10px; }
+#members ul { margin: 0 0 8px; padding-left: 18px; }
+#add-form, .invite { display: flex; gap: 6px; }
+#messages {
+  list-style: none; margin: 0; padding: 8px; flex: 1; overflow-y: auto;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px; min-height: 200px;
+}
+.msg { padding: 6px 8px; border-radius: 6px; margin-bottom: 4px; }
+.msg.mine { background: var(--mine); }
+.msg-head { display: flex; gap: 10px; align-items: baseline; }
+.author { font-weight: 600; font-size: 14px; }
+.text { white-space: pre-wrap; overflow-wrap: anywhere; }
+#post-form { margin-top: 10px; }
+.post-row { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
+@media (max-width: 720px) {
+  main { flex-direction: column; padding: 12px 16px; }
+  #sidebar { width: 100%; }
+  #chat { max-height: none; }
+  #messages { max-height: 60vh; }
+}

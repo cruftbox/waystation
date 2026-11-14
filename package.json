@@ -1,0 +1,36 @@
+{
+  "name": "parlor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lightweight chat client for atproto Spaces",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test test/unit/*.test.js",
+    "e2e": "node test/e2e.mjs",
+    "publish-lexicons": "node scripts/publish-lexicons.mjs"
+  },
+  "dependencies": {
+    "@atproto/crypto": "0.0.0-spaces-alpha-20261112204144",
+    "@atproto/oauth-client": "0.0.0-spaces-alpha-20261112204144",
+    "@atproto/oauth-client-node": "0.0.0-spaces-alpha-20261112204144",
+    "@atproto/space": "0.0.0-spaces-alpha-20261112204144"
+  },
+  "overrides": {
+    "@atproto/crypto": "0.0.0-spaces-alpha-20261112204144",
+    "@atproto/syntax": "0.0.0-spaces-alpha-20261112204144",
+    "@atproto/star": "0.0.0-spaces-alpha-20261112204144",
+    "@atproto/lex-cbor": "0.0.0-spaces-alpha-20261112204144",
+    "@atproto/lex-data": "0.0.0-spaces-alpha-20261112204144",
+    "@atproto/lex-schema": "0.0.0-spaces-alpha-20261112204144",
+    "@atproto/lex-json": "0.0.0-spaces-alpha-20261112204144",
+    "@atproto/oauth-resolver": "0.0.0-spaces-alpha-20261112204144"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.49.1"
+  }
+}

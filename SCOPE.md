@@ -8,10 +8,11 @@ All Parlor code lives in this repository. Clockwork-specific code, such as the b
 
 - **Separate project.** Parlor has no Clockwork code or Clockwork concepts in it. MIT license; private GitHub repository `cruftbox/parlor`.
 - **Server-side Node app.** A Node server holds each user's OAuth session and makes the Spaces calls; the browser talks only to Parlor's server. Node because Bluesky's official atproto OAuth and Spaces libraries are written for it, and OAuth on the Spaces sandbox was verified with them.
-- **Hosting.** Runs on the cruftmanor.com server, at a hostname such as `parlor.cruftmanor.com` (A record plus TLS certificate). Deployed over SSH. This is separate from Clockwork, which still deploys through its own dashboard.
-- **Lexicon.** Parlor's message record type and space type are under the `com.cruftmanor.parlor.*` namespace, which needs a `_lexicon` TXT record under cruftmanor.com pointing to the account that publishes the schemas.
+- **Hosting.** Runs on the cruftmanor.com server at `parlor.cruftmanor.com` (A record plus TLS certificate). Deployed over SSH. This is separate from Clockwork, which still deploys through its own dashboard. Setup and host facts are in DEPLOY.md.
+- **Lexicon.** Space type `com.cruftmanor.parlor.space` and message record `com.cruftmanor.parlor.message` (`text` up to 1000 graphemes, `createdAt`). The schemas are published from the clockworkconductor sandbox account (did:plc:e2fj77s3rygus52me3ul6qka); DNS needs `_lexicon.parlor.cruftmanor.com` TXT `did=did:plc:e2fj77s3rygus52me3ul6qka`.
+- **OAuth scopes.** Members: `space:com.cruftmanor.parlor.space?authority=*&collection=com.cruftmanor.parlor.message`. Hosts add `space:com.cruftmanor.parlor.space?authority=*&manage=create&manage=update`, chosen at sign-in with a checkbox. `listSpaces` is not used: it needs a read scope over every space type.
 - **Target.** Build against the Spaces alpha sandbox (`https://spaces-alpha.host.bsky.network`) now. The public beta starts 2026-12-01 with an updated PDS and an official SDK; expect rework then.
-- **Finding a space (blocked, needs a new decision).** Decided: a player enters a space owner's handle, Parlor lists that owner's spaces the player is already a member of, and the player opens one. There are no join requests: in a memberspace only the owner adds members. Sandbox evidence shows this does not work for a newly added member (see Known facts), so a replacement is needed before the space-list UI is built.
+- **Finding a space (revised 2026-11-14).** The first decision (a player enters a space owner's handle and Parlor lists that owner's spaces) does not work for a newly added member (see Known facts). Replacement, decided by the user: Parlor keeps a directory of the spaces created and members added through it, and a member sees those spaces after signing in. Any other space opens from an invite link that the owner copies in Parlor; the link carries the space URI and works only for members. There are no join requests: in a memberspace only the owner adds members.
 - **Owner tools.** The owner of a space can create spaces and add or remove members by handle in Parlor.
 - **Chat scope.** Plain text with a length cap; messages ordered by time with the author's handle; updates every few seconds. No editing, deleting, reactions or attachments.
 - **Testers.** Anyone with a sandbox account can sign in. Testers must be told the sandbox is shared and unencrypted, and that nothing private belongs there.
@@ -31,10 +32,16 @@ These come from the Clockwork Spaces assessment (Clockwork repository, `Working 
 - OAuth works when the space type has a published declaration found through a `_lexicon` DNS record.
 - Measured latency (60-minute soak): write-to-detect p50 2.9 s, p95 5.0 s, with no duplicates, errors or rate limits.
 
+Found while building (2026-11-14):
+
+- A loopback OAuth client must declare every requested scope in its metadata; a request for a scope not declared fails with `invalid_scope`.
+- `listSpaces` through OAuth needs `space:*?authority=<own DID>&action=read_self`.
+- `authorizeSpaceSync` for a deleted space returns 400 `SpaceDeleted`.
+
 ## Unverified
 
-- A hosted, server-side OAuth client with durable sessions for several users, surviving restarts. Only a local loopback client with in-memory stores has been tested.
-- What reverse proxy, process manager, ports, users and backups already exist on cruftmanor.com.
+- The hosted (non-loopback) OAuth client at https://parlor.cruftmanor.com. Waits on DNS and the certificate. The same code passed end to end with the loopback client and SQLite-backed sessions.
+- Backups: the host runs an Acronis agent and may back up `/var/lib/parlor` and `/etc/parlor`. Sessions in the database are encrypted with `SESSION_KEY`, but a backup holding both the database and `/etc/parlor/parlor.env` can decrypt them. Not checked.
 - Whether the beta adds a member-discovery mechanism. The beta announcement says nothing about it, so Parlor is not designed on that assumption.
 
 ## Risks
@@ -56,6 +63,17 @@ These come from the Clockwork Spaces assessment (Clockwork repository, `Working 
 8. **Beta revalidation.** After 2026-12-01, recheck discovery, OAuth, method names, credentials, sync, removal and lexicons before treating the alpha code as reusable.
 
 Out of scope until beta: broader UI work, deployment polish, and abstractions around alpha APIs.
+
+## Progress (2026-11-14)
+
+1. Done. Directory plus invite links (user decision).
+2. Done. Inventory recorded in DEPLOY.md.
+3. Done, except DNS. Lexicons in `lexicons/`, published to the sandbox. The `_lexicon` TXT record is pending.
+4. Built and tested with the loopback client; the hosted client waits on DNS and the certificate. Parlor runs on cruftmanor.com as a systemd service on 127.0.0.1:8790 with production settings.
+5. Done. 25/25 end-to-end checks against the sandbox (`npm run e2e`): sign-in with both scopes, CSRF, create, add, discovery, open by link, post, read (about 0.5 to 0.7 s to see the other user's message), plain-text rendering, removal (messages hidden within about 2 s, removed member refused), sign-out.
+6. Done (same test).
+7. Done in code (size, rate and count limits, sandbox notice). Codex reviewed the code and found 10 issues (1 high, 5 medium, 4 low); all were fixed. Outside testers wait on step 4.
+8. After 2026-12-01.
 
 ## Rules
 

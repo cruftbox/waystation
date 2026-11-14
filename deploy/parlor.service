@@ -1,0 +1,40 @@
+[Unit]
+Description=Parlor chat client for atproto Spaces
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=parlor
+Group=parlor
+WorkingDirectory=/opt/parlor/app
+EnvironmentFile=/etc/parlor/parlor.env
+# The env file sets everything; keep .env loading off.
+Environment=PARLOR_ENV_FILE=/nonexistent
+ExecStart=/opt/parlor/node/bin/node src/server.js
+Restart=on-failure
+RestartSec=5
+
+# Isolation from the rest of the host (Clockwork, sites, mail).
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+ReadWritePaths=/var/lib/parlor
+UMask=0077
+
+# Resource limits.
+MemoryMax=300M
+CPUQuota=50%
+TasksMax=64
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target

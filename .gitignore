@@ -4,3 +4,5 @@ node_modules/
 *.log
 state*.json
 sessions/
+data/
+!.env.example
