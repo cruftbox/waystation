@@ -61,6 +61,8 @@ export const config = {
   // mod_security request body limit (12.5 MB) on cruftmanor.com.
   maxImageBytes: int('MAX_IMAGE_BYTES', 12 * 1024 * 1024),
   maxPdfBytes: int('MAX_PDF_BYTES', 12 * 1024 * 1024),
+  // Image thumbnails, made by the poster's browser and shown in the chat.
+  maxThumbBytes: int('MAX_THUMB_BYTES', 256 * 1024),
   // Spaces a single user may create through Parlor.
   maxSpacesPerOwner: int('MAX_SPACES_PER_OWNER', 20),
 

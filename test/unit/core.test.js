@@ -212,15 +212,42 @@ test('messageFromRecord accepts a file with empty text, and drops bad files', ()
   assert.equal(messageFromRecord({ text: 'hi', attachment: { file: blobRef('image/svg+xml') } }).attachment, null)
 })
 
-test('applyOps keeps attachments and findAttachment checks author and CID', () => {
+test('applyOps keeps attachments and findFile checks author and CID', () => {
   const v = view()
   v.writers.add(OTHER)
   v.applyOps(OTHER, [op('1', 'r1', { text: '', attachment: { file: blobRef('application/pdf'), name: 'mod.pdf' }, createdAt: '2026-01-01T00:00:01Z' })])
-  assert.equal(v.findAttachment(OTHER, CID).name, 'mod.pdf')
-  assert.equal(v.findAttachment(OWNER, CID), null)
-  assert.equal(v.findAttachment(OTHER, 'bafkreiother'), null)
+  assert.equal(v.findFile(OTHER, CID).name, 'mod.pdf')
+  assert.equal(v.findFile(OWNER, CID), null)
+  assert.equal(v.findFile(OTHER, 'bafkreiother'), null)
   v.dropRepo(OTHER)
-  assert.equal(v.findAttachment(OTHER, CID), null)
+  assert.equal(v.findFile(OTHER, CID), null)
+})
+
+const CID2 = 'bafkreibm6jg3ux5qumhcn2b3flc3tyu6dmlb4xa7u5bf44yegnrjhc4yeq'
+const thumbRef = (mimeType = 'image/webp', size = 5000) => ({ $type: 'blob', ref: { $link: CID2 }, mimeType, size })
+
+test('attachmentFromRecord keeps a valid thumbnail and size for images only', () => {
+  const a = attachmentFromRecord({ file: blobRef('image/jpeg', 4_000_000), name: 'p.jpg', thumb: thumbRef(), width: 4032, height: 3024 })
+  assert.deepEqual(a.thumb, { cid: CID2, mime: 'image/webp', size: 5000 })
+  assert.equal(a.width, 4032)
+  assert.equal(a.height, 3024)
+  // Too large, wrong type, same CID as the file, or on a PDF: dropped.
+  assert.equal(attachmentFromRecord({ file: blobRef('image/png'), thumb: thumbRef('image/webp', 256 * 1024 + 1) }).thumb, undefined)
+  assert.equal(attachmentFromRecord({ file: blobRef('image/png'), thumb: thumbRef('image/gif') }).thumb, undefined)
+  assert.equal(attachmentFromRecord({ file: blobRef('image/png'), thumb: blobRef('image/webp') }).thumb, undefined)
+  assert.equal(attachmentFromRecord({ file: blobRef('application/pdf'), thumb: thumbRef(), width: 1, height: 1 }).thumb, undefined)
+  // Bad sizes are dropped; the attachment stays.
+  const b = attachmentFromRecord({ file: blobRef('image/png'), width: 0, height: 10 })
+  assert.equal(b.width, undefined)
+  assert.equal(attachmentFromRecord({ file: blobRef('image/png'), width: 1.5, height: 10 }).width, undefined)
+})
+
+test('findFile serves a thumbnail with its own type', () => {
+  const v = view()
+  v.writers.add(OTHER)
+  v.applyOps(OTHER, [op('1', 'r1', { text: '', attachment: { file: blobRef('image/png'), name: 'map.png', thumb: thumbRef() }, createdAt: '2026-01-01T00:00:01Z' })])
+  assert.deepEqual(v.findFile(OTHER, CID), { mime: 'image/png', size: 100, name: 'map.png', thumb: false })
+  assert.deepEqual(v.findFile(OTHER, CID2), { mime: 'image/webp', size: 5000, name: 'map.png', thumb: true })
 })
 
 test('contentDisposition quotes safely', () => {

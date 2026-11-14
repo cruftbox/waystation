@@ -227,8 +227,13 @@ function fmtSize(n) {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`
 }
 
-// Images inline (click opens full size); PDFs as a download link. URLs and
-// names come from the Parlor server; names are set as text only.
+// Largest size an image is shown at in the chat (matches style.css).
+const SHOW_W = 360
+const SHOW_H = 280
+
+// Images inline, from the thumbnail when there is one (click opens the full
+// file); PDFs as a download link. URLs and names come from the Parlor
+// server; names are set as text only.
 function fileElement(f) {
   const box = el('div', undefined, 'msg-file')
   if (f.kind === 'image') {
@@ -237,12 +242,19 @@ function fileElement(f) {
     a.target = '_blank'
     a.rel = 'noopener'
     const img = el('img')
-    img.src = f.url
+    img.src = f.thumbUrl ?? f.url
     img.alt = f.name
     img.loading = 'lazy'
     img.decoding = 'async'
+    if (f.width && f.height) {
+      // Hold the space before the image arrives, so the list does not jump.
+      const scale = Math.min(1, SHOW_W / f.width, SHOW_H / f.height)
+      img.style.width = `${Math.max(1, Math.round(f.width * scale))}px`
+      img.style.aspectRatio = `${f.width} / ${f.height}`
+    }
     a.append(img)
     box.append(a)
+    if (f.thumbUrl) box.append(el('div', `${f.name} · ${fmtSize(f.size)}`, 'small file-caption'))
   } else {
     const a = el('a', `PDF: ${f.name} (${fmtSize(f.size)})`, 'pdf')
     a.href = f.url
@@ -258,7 +270,7 @@ function fileElement(f) {
 const fileNodes = new Map()
 function cachedFileElement(m, used) {
   const f = m.file
-  const key = JSON.stringify([m.uri, f.url, f.kind, f.name, f.size])
+  const key = JSON.stringify([m.uri, f.url, f.thumbUrl, f.kind, f.name, f.size, f.width, f.height])
   used.add(key)
   let node = fileNodes.get(key)
   if (!node) {
@@ -307,11 +319,63 @@ $('post-file').addEventListener('change', () => {
 
 $('file-clear').addEventListener('click', clearFile)
 
+// Thumbnails: made here, before upload, for PNG, JPEG and WebP. GIFs are
+// left alone (a redrawn GIF loses its animation), as are images already
+// small enough to show as they are.
+const THUMB_EDGE = 720
+const THUMB_MAX_BYTES = 256 * 1024
+
+function canvasBlob(canvas, type, quality) {
+  return new Promise((resolve) => canvas.toBlob(resolve, type, quality))
+}
+
+// { thumb: Blob|null, width, height } for an image file, or null if the
+// browser cannot read it (the full image is then sent alone).
+async function makeThumb(file) {
+  if (fileKind(file) !== 'image' || file.type === 'image/gif' || /\.gif$/i.test(file.name)) return null
+  let bmp
+  try {
+    bmp = await createImageBitmap(file) // applies EXIF orientation
+  } catch {
+    return null
+  }
+  try {
+    const width = bmp.width
+    const height = bmp.height
+    const scale = Math.min(1, THUMB_EDGE / Math.max(width, height))
+    if (scale === 1 && file.size <= THUMB_MAX_BYTES) return { thumb: null, width, height }
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(width * scale))
+    canvas.height = Math.max(1, Math.round(height * scale))
+    const ctx = canvas.getContext('2d')
+    // WebP keeps transparency. Browsers that cannot write WebP get JPEG,
+    // drawn on white so transparent areas do not turn black.
+    ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height)
+    let thumb = await canvasBlob(canvas, 'image/webp', 0.8)
+    if (!thumb || thumb.type !== 'image/webp') {
+      ctx.fillStyle = '#fff'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height)
+      thumb = await canvasBlob(canvas, 'image/jpeg', 0.8)
+    }
+    if (!thumb || thumb.size > THUMB_MAX_BYTES) thumb = null
+    return { thumb, width, height }
+  } finally {
+    bmp.close()
+  }
+}
+
 async function upload(uri, text, file) {
   const form = new FormData()
   form.append('uri', uri)
   form.append('text', text)
   form.append('file', file, file.name)
+  const extra = await makeThumb(file)
+  if (extra?.thumb) form.append('thumb', extra.thumb, extra.thumb.type === 'image/webp' ? 'thumb.webp' : 'thumb.jpg')
+  if (extra) {
+    form.append('width', String(extra.width))
+    form.append('height', String(extra.height))
+  }
   const res = await fetch('/api/space/upload', {
     method: 'POST', body: form, credentials: 'same-origin', headers: { 'x-csrf-token': me.csrf },
   })

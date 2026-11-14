@@ -75,12 +75,12 @@ Out of scope until beta: broader UI work, deployment polish, and abstractions ar
 7. Done in code (size, rate and count limits, sandbox notice). Codex reviewed the code and found 10 issues (1 high, 5 medium, 4 low); all were fixed. Outside testers can sign in.
 8. After 2026-12-01.
 9. Attachments done. 40/40 end-to-end checks on the hosted site, including a PDF near the 12 MB cap through Apache and mod_security. Codex review: three findings (download slot released before sending, stale credential on downloads, browser cache shared across accounts) fixed; the 10 s credential window is a deliberate trade-off.
+10. Image thumbnails (2026-11-14). The poster's browser draws PNG, JPEG and WebP images at 720 pixels on the long side and uploads that copy (WebP, or JPEG where the browser cannot write WebP; at most 256 KB) with the image's width and height. The chat shows the thumbnail in a box sized before it loads, with the file name and full size below; clicking opens the full file. GIFs and images already small enough get no thumbnail. Older messages show the full image. The thumbnail is served under the same rule as the file. The message lexicon gained optional `thumb`, `width` and `height` and was republished. 46/46 end-to-end checks.
 
 ## Open items (2026-11-14)
 
 - **Hosted e2e can sign the owner out.** A new sign-in whose host checkbox differs ends that account's web sessions of the other scope, so `npm run e2e` against the hosted site (signs in as the owner with host scope) can sign the owner out elsewhere. Run e2e against a local server.
 - **Test-namespace lexicons.** `com.cruftbox.clockwork.parlorspace` and `.parlormessage` stay published on the sandbox bot account because the local `.env` uses them (see README). They go away with the alpha.
-- **No image thumbnails.** Each chat load downloads every image in full.
 - **Space deleted outside Parlor.** Its entry stays in the owner's list until clicked; opening it then removes it.
 - **Beta revalidation** (plan step 8): lexicons and the `_lexicon.parlor.cruftmanor.com` record point at the sandbox bot account, which ends with the alpha.
 

@@ -36,7 +36,15 @@
           "maxLength": 1000,
           "maxGraphemes": 200,
           "description": "Original file name, for display and download."
-        }
+        },
+        "thumb": {
+          "type": "blob",
+          "accept": ["image/webp", "image/jpeg", "image/png"],
+          "maxSize": 262144,
+          "description": "Images only: a smaller copy shown in the chat; the full file opens on request."
+        },
+        "width": { "type": "integer", "minimum": 1, "maximum": 100000, "description": "Images only: width in pixels, as displayed." },
+        "height": { "type": "integer", "minimum": 1, "maximum": 100000, "description": "Images only: height in pixels, as displayed." }
       }
     }
   }

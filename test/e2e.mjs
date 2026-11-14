@@ -84,18 +84,19 @@ async function call(u, path, { method = 'GET', body, csrf = true } = {}) {
 }
 
 // Multipart upload from inside the user's page.
-async function uploadFile(u, { uri, text, name, type, bytes }) {
-  return u.page.evaluate(async ({ uri, text, name, type, b64, token }) => {
+async function uploadFile(u, { uri, text, name, type, bytes, thumb }) {
+  return u.page.evaluate(async ({ uri, text, name, type, b64, thumb64, token }) => {
     const bin = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
     const form = new FormData()
     form.append('uri', uri)
     form.append('text', text)
     form.append('file', new File([bin], name, { type }))
+    if (thumb64) form.append('thumb', new File([Uint8Array.from(atob(thumb64), (c) => c.charCodeAt(0))], 'thumb.webp'))
     const r = await fetch('/api/space/upload', { method: 'POST', body: form, headers: { 'x-csrf-token': token } })
     let data = {}
     try { data = await r.json() } catch { /* empty */ }
     return { status: r.status, data }
-  }, { uri, text, name, type, b64: bytes.toString('base64'), token: u.me.csrf })
+  }, { uri, text, name, type, b64: bytes.toString('base64'), thumb64: thumb?.toString('base64'), token: u.me.csrf })
 }
 
 async function getFile(u, url) {
@@ -282,6 +283,8 @@ try {
   const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>')
   const upSvg = await uploadFile(A, { uri: space, text: '', name: 'evil.png', type: 'image/png', bytes: svg })
   check('SVG renamed .png refused', upSvg.status === 415, `${upSvg.status} ${upSvg.data.error}`)
+  const upBadThumb = await uploadFile(B, { uri: space, text: '', name: 'x.png', type: 'image/png', bytes: png, thumb: svg })
+  check('SVG thumbnail refused', upBadThumb.status === 415 && upBadThumb.data.error === 'BadThumb', `${upBadThumb.status} ${upBadThumb.data.error}`)
   const big = Buffer.concat([png.subarray(0, 8), Buffer.alloc(A.me.maxImageBytes + 1 - 8)])
   const upBig = await uploadFile(A, { uri: space, text: '', name: 'big.png', type: 'image/png', bytes: big })
   check('oversized image refused', upBig.status === 413, `${upBig.status} ${upBig.data.error}`)
@@ -311,6 +314,40 @@ try {
     return !!img && img.complete && img.naturalWidth === 2
   }))
   check('UI shows the image inline', imgOk.ok, `${imgOk.ms} ms`)
+  // Thumbnail: a 1600x1200 photo-like image sent through the page's own
+  // form, so the browser makes the thumbnail.
+  await A.page.evaluate(async () => {
+    const c = document.createElement('canvas')
+    c.width = 1600
+    c.height = 1200
+    const g = c.getContext('2d')
+    for (let i = 0; i < 4000; i++) {
+      g.fillStyle = `hsl(${(i * 37) % 360} 70% ${30 + (i % 40)}%)`
+      g.fillRect((i * 97) % 1600, (i * 53) % 1200, 40, 40)
+    }
+    const blob = await new Promise((r) => c.toBlob(r, 'image/png'))
+    const dt = new DataTransfer()
+    dt.items.add(new File([blob], 'big-map.png', { type: 'image/png' }))
+    const input = document.getElementById('post-file')
+    input.files = dt.files
+    input.dispatchEvent(new Event('change'))
+    document.getElementById('post-text').value = 'Big map.'
+  })
+  await A.page.click('#post-form button[type=submit]')
+  const thumbSeen = await waitFor('thumb message', async () => (await call(A, `/api/space?uri=${encodeURIComponent(space)}`))
+    .data.messages?.find((m) => m.text === 'Big map.' && m.file?.thumbUrl))
+  const tf = thumbSeen.v?.file
+  check('page upload records a thumbnail and the size', thumbSeen.ok && tf.width === 1600 && tf.height === 1200,
+    `${thumbSeen.ms} ms ${tf?.width}x${tf?.height}`)
+  const gotThumb = tf ? await getFile(A, tf.thumbUrl) : { status: 0 }
+  const thumbBytes = gotThumb.b64 ? Buffer.from(gotThumb.b64, 'base64').length : 0
+  check('thumbnail is served as a small WebP or JPEG', gotThumb.status === 200 && ['image/webp', 'image/jpeg'].includes(gotThumb.type)
+    && thumbBytes > 0 && thumbBytes < tf.size, `${gotThumb.status} ${gotThumb.type} ${thumbBytes} of ${tf?.size} bytes`)
+  const shown = await waitFor('UI thumb', async () => A.page.evaluate((u) => {
+    const img = [...document.querySelectorAll('#messages .msg-file img')].find((i) => i.getAttribute('src') === u)
+    return !!img && img.complete && img.naturalWidth === 720 && img.parentElement.href !== img.src
+  }, tf?.thumbUrl))
+  check('UI shows the thumbnail and links the full image', shown.ok, `${shown.ms} ms`)
   const pdfLink = await A.page.locator('#messages a.pdf', { hasText: 'Test Module.pdf' }).innerText().catch(() => '')
   check('UI shows the PDF as a link', pdfLink.startsWith('PDF: Test Module.pdf'), pdfLink)
   await A.page.screenshot({ path: (process.env.SCREENSHOT ?? 'test/e2e-owner.png').replace(/\.png$/, '-files.png'), fullPage: true })

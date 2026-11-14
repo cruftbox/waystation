@@ -341,12 +341,16 @@ export class SpaceView {
     return [...this.messages.values()].sort(compareMessages)
   }
 
-  // The attachment with this CID on a message by this author that the view
-  // currently shows, or null. Serving only these keeps file access tied to
-  // what the viewer can read in this space.
-  findAttachment(repo, cid) {
+  // The file with this CID (an attachment or its thumbnail) on a message by
+  // this author that the view currently shows, as { mime, size, name, thumb },
+  // or null. Serving only these keeps file access tied to what the viewer
+  // can read in this space.
+  findFile(repo, cid) {
     for (const m of this.messages.values()) {
-      if (m.author === repo && m.attachment?.cid === cid) return m.attachment
+      const a = m.author === repo ? m.attachment : null
+      if (!a) continue
+      if (a.cid === cid) return { mime: a.mime, size: a.size, name: a.name, thumb: false }
+      if (a.thumb?.cid === cid) return { mime: a.thumb.mime, size: a.thumb.size, name: a.name, thumb: true }
     }
     return null
   }
@@ -370,10 +374,18 @@ export class SpaceView {
 
 // ---------- user-side operations ----------
 
-// attachment: { blob, name } where blob is the ref returned by uploadBlob.
+// attachment: { blob, name, thumb?, width?, height? } where blob and thumb
+// are refs returned by uploadBlob.
 export async function postMessage(session, space, text, attachment = null) {
   const record = { $type: config.messageCollection, text, createdAt: new Date().toISOString() }
-  if (attachment) record.attachment = { file: attachment.blob, name: attachment.name }
+  if (attachment) {
+    record.attachment = { file: attachment.blob, name: attachment.name }
+    if (attachment.thumb) record.attachment.thumb = attachment.thumb
+    if (attachment.width && attachment.height) {
+      record.attachment.width = attachment.width
+      record.attachment.height = attachment.height
+    }
+  }
   return asUser(session, 'com.atproto.space.createRecord', {
     body: { space: space.uri, repo: session.did, collection: config.messageCollection, record },
   })

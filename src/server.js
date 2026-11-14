@@ -12,7 +12,7 @@ import { resolveHandle, displayHandle, isDid, sweepCaches } from './identity.js'
 import {
   SpaceView, XrpcError, parseSpaceUri, postMessage, uploadBlob, createSpace, listMembers, addMember, removeMember,
 } from './spaces.js'
-import { sniffMime, maxBytesFor, maxFileBytes, cleanFileName, isImage, contentDisposition } from './files.js'
+import { sniffMime, maxBytesFor, maxFileBytes, cleanFileName, isImage, contentDisposition, THUMB_TYPES, MAX_DIMENSION } from './files.js'
 import { RateLimiter, RateLimitError } from './ratelimit.js'
 
 const log = (...a) => console.log(new Date().toISOString(), ...a)
@@ -123,7 +123,7 @@ async function readJson(req) {
 async function readForm(req) {
   const type = String(req.headers['content-type'] ?? '')
   if (!type.startsWith('multipart/form-data')) throw new HttpError(415, 'UnsupportedMediaType')
-  const cap = maxFileBytes() + 64 * 1024
+  const cap = maxFileBytes() + config.maxThumbBytes + 64 * 1024
   if (Number(req.headers['content-length'] ?? 0) > cap) throw new HttpError(413, 'FileTooLarge', tooLargeMessage())
   let size = 0
   const chunks = []
@@ -142,6 +142,30 @@ async function readForm(req) {
 const mb = (n) => `${Math.round((n / (1024 * 1024)) * 10) / 10} MB`
 function tooLargeMessage() {
   return `Images are limited to ${mb(config.maxImageBytes)} and PDFs to ${mb(config.maxPdfBytes)}.`
+}
+
+function fileUrl(uri, repo, cid) {
+  return `/api/space/file?${new URLSearchParams({ uri, repo, cid })}`
+}
+
+// Optional fields sent with an image: a thumbnail made by the browser and
+// the image's width and height. A bad thumbnail is refused; bad or missing
+// sizes are ignored.
+async function thumbFromForm(form) {
+  const out = {}
+  const t = form.get('thumb')
+  if (t && typeof t !== 'string') {
+    const bytes = Buffer.from(await t.arrayBuffer())
+    const mime = sniffMime(bytes)
+    if (!THUMB_TYPES.includes(mime)) throw new HttpError(415, 'BadThumb', 'The image preview is not a WebP, JPEG or PNG.')
+    if (bytes.length > config.maxThumbBytes) throw new HttpError(413, 'ThumbTooLarge', 'The image preview is too large.')
+    out.thumb = { bytes, mime }
+  }
+  const w = Number(form.get('width'))
+  const h = Number(form.get('height'))
+  const ok = (n) => Number.isInteger(n) && n >= 1 && n <= MAX_DIMENSION
+  if (ok(w) && ok(h)) Object.assign(out, { width: w, height: h })
+  return out
 }
 
 // File transfers held in memory at once, server-wide.
@@ -548,11 +572,14 @@ async function route(req, res) {
         text: m.text,
         createdAt: m.createdAt,
         file: m.attachment ? {
-          url: `/api/space/file?${new URLSearchParams({ uri: space.uri, repo: m.author, cid: m.attachment.cid })}`,
+          url: fileUrl(space.uri, m.author, m.attachment.cid),
+          thumbUrl: m.attachment.thumb ? fileUrl(space.uri, m.author, m.attachment.thumb.cid) : null,
           kind: isImage(m.attachment.mime) ? 'image' : 'pdf',
           mime: m.attachment.mime,
           size: m.attachment.size,
           name: m.attachment.name,
+          width: m.attachment.width ?? null,
+          height: m.attachment.height ?? null,
         } : null,
       })),
     })
@@ -570,7 +597,7 @@ async function route(req, res) {
       if (explain(err).code === 'NoAccess') views.delete(`${did} ${space.uri}`)
       throw err
     }
-    const att = view.findAttachment(repo, cid)
+    const att = view.findFile(repo, cid)
     if (!att) throw new HttpError(404, 'FileNotFound', 'That file is not in this space.')
     // A credential outlives removal, so prove membership with one issued in
     // the last few seconds (the page fetches each file once per load).
@@ -591,7 +618,7 @@ async function route(req, res) {
         if (res.destroyed || res.writableFinished) resolve()
         else res.once('close', resolve)
       })
-      const bytes = await view.fetchBlob(repo, cid, maxBytesFor(att.mime))
+      const bytes = await view.fetchBlob(repo, cid, att.thumb ? config.maxThumbBytes : maxBytesFor(att.mime))
       // Serve only what the bytes really are, and only if that matches the record.
       if (sniffMime(bytes) !== att.mime) {
         log('file type mismatch', space.uri, repo, cid)
@@ -630,14 +657,18 @@ async function route(req, res) {
       if (!mime) throw new HttpError(415, 'BadFileType', 'Only PNG, JPEG, GIF, WebP and PDF files can be attached.')
       if (bytes.length > maxBytesFor(mime)) throw new HttpError(413, 'FileTooLarge', tooLargeMessage())
       const name = cleanFileName(file.name, mime)
+      const extra = isImage(mime) ? await thumbFromForm(form) : null
       // Same membership check as text messages.
       const v = viewFor(session, space)
       v.cred = null
       await v.credential()
       const blob = await uploadBlob(session, bytes, mime)
-      const out = await postMessage(session, space, text, { blob, name })
+      const attachment = { blob, name }
+      if (extra?.thumb) attachment.thumb = await uploadBlob(session, extra.thumb.bytes, extra.thumb.mime)
+      if (extra?.width) Object.assign(attachment, { width: extra.width, height: extra.height })
+      const out = await postMessage(session, space, text, attachment)
       v.lastSync = 0
-      log('file posted', did, space.uri, mime, bytes.length)
+      log('file posted', did, space.uri, mime, bytes.length, attachment.thumb ? `thumb ${extra.thumb.bytes.length}` : 'no thumb')
       return send(res, 200, { uri: out.uri })
     })
   }

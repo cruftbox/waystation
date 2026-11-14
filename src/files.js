@@ -54,19 +54,42 @@ export function cleanFileName(name, mime) {
 
 const CID_RE = /^b[a-z2-7]{20,120}$/
 
-// Validate an attachment field from a record. Returns
-// { cid, mime, size, name } or null.
-export function attachmentFromRecord(a) {
-  if (!a || typeof a !== 'object') return null
-  const f = a.file
+// Thumbnails: a small copy of an image made by the poster's browser.
+export const THUMB_TYPES = ['image/webp', 'image/jpeg', 'image/png']
+export const MAX_DIMENSION = 100000
+
+// A blob ref's { cid, mime, size } if it is well formed, of an allowed type
+// and within maxBytes(mime); otherwise null.
+function blobFromRecord(f, types, maxBytes) {
   if (!f || typeof f !== 'object' || f.$type !== 'blob') return null
   const cid = f.ref?.$link
   const mime = String(f.mimeType ?? '').toLowerCase()
   const size = f.size
   if (typeof cid !== 'string' || !CID_RE.test(cid)) return null
-  if (!FILE_TYPES.includes(mime)) return null
-  if (!Number.isInteger(size) || size <= 0 || size > maxBytesFor(mime)) return null
-  return { cid, mime, size, name: cleanFileName(a.name, mime) }
+  if (!types.includes(mime)) return null
+  if (!Number.isInteger(size) || size <= 0 || size > maxBytes(mime)) return null
+  return { cid, mime, size }
+}
+
+const isDimension = (n) => Number.isInteger(n) && n >= 1 && n <= MAX_DIMENSION
+
+// Validate an attachment field from a record. Returns
+// { cid, mime, size, name } plus, for an image, thumb: { cid, mime, size }
+// and width and height when present and valid; or null. A bad thumbnail or
+// size is dropped and the full image is used.
+export function attachmentFromRecord(a) {
+  if (!a || typeof a !== 'object') return null
+  const file = blobFromRecord(a.file, FILE_TYPES, maxBytesFor)
+  if (!file) return null
+  const out = { ...file, name: cleanFileName(a.name, file.mime) }
+  if (!isImage(file.mime)) return out
+  const thumb = blobFromRecord(a.thumb, THUMB_TYPES, () => config.maxThumbBytes)
+  if (thumb && thumb.cid !== file.cid) out.thumb = thumb
+  if (isDimension(a.width) && isDimension(a.height)) {
+    out.width = a.width
+    out.height = a.height
+  }
+  return out
 }
 
 // Content-Disposition value for a download.
