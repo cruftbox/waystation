@@ -40,7 +40,6 @@ Found while building (2026-11-14):
 
 ## Unverified
 
-- The hosted (non-loopback) OAuth client at https://parlor.cruftmanor.com. Waits on DNS and the certificate. The same code passed end to end with the loopback client and SQLite-backed sessions.
 - Backups: the host runs an Acronis agent and may back up `/var/lib/parlor` and `/etc/parlor`. Sessions in the database are encrypted with `SESSION_KEY`, but a backup holding both the database and `/etc/parlor/parlor.env` can decrypt them. Not checked.
 - Whether the beta adds a member-discovery mechanism. The beta announcement says nothing about it, so Parlor is not designed on that assumption.
 
@@ -68,11 +67,11 @@ Out of scope until beta: broader UI work, deployment polish, and abstractions ar
 
 1. Done. Directory plus invite links (user decision).
 2. Done. Inventory recorded in DEPLOY.md.
-3. Done, except DNS. Lexicons in `lexicons/`, published to the sandbox. The `_lexicon` TXT record is pending.
-4. Built and tested with the loopback client; the hosted client waits on DNS and the certificate. Parlor runs on cruftmanor.com as a systemd service on 127.0.0.1:8790 with production settings.
+3. Done. Lexicons in `lexicons/`, published to the sandbox; `_lexicon.parlor.cruftmanor.com` TXT record live.
+4. Done. Live at https://parlor.cruftmanor.com (Apache proxy to the systemd service on 127.0.0.1:8790, Let's Encrypt certificate via acme.sh). 25/25 end-to-end checks pass against the hosted client with the production namespace.
 5. Done. 25/25 end-to-end checks against the sandbox (`npm run e2e`): sign-in with both scopes, CSRF, create, add, discovery, open by link, post, read (about 0.5 to 0.7 s to see the other user's message), plain-text rendering, removal (messages hidden within about 2 s, removed member refused), sign-out.
 6. Done (same test).
-7. Done in code (size, rate and count limits, sandbox notice). Codex reviewed the code and found 10 issues (1 high, 5 medium, 4 low); all were fixed. Outside testers wait on step 4.
+7. Done in code (size, rate and count limits, sandbox notice). Codex reviewed the code and found 10 issues (1 high, 5 medium, 4 low); all were fixed. Outside testers can sign in.
 8. After 2026-12-01.
 
 ## Rules

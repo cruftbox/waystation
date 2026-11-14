@@ -54,7 +54,8 @@ async function signIn(browser, user, { host }) {
   while (Date.now() < deadline) {
     if (page.url().startsWith(PARLOR)) break
     const accept = page.getByRole('button', { name: /^(Accept|Authorize|Allow|Continue)$/i })
-    if (await accept.count()) {
+    // The page may navigate away mid-check; that is expected.
+    if (await accept.count().catch(() => 0)) {
       await accept.first().click().catch(() => {})
     }
     await sleep(1000)
