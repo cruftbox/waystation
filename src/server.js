@@ -186,7 +186,7 @@ const qSessionTrim = db.prepare(`DELETE FROM web_session WHERE did = ? AND sid_h
 // a different scope must not inherit it, so they are ended.
 const qSessionDelOtherScope = db.prepare('DELETE FROM web_session WHERE did = ? AND host != ?')
 const qSessionDel = db.prepare('DELETE FROM web_session WHERE sid_hash = ?')
-const qSessionDelDid = db.prepare('DELETE FROM web_session WHERE did = ?')
+const qSessionLive = db.prepare('SELECT COUNT(*) AS n FROM web_session WHERE did = ? AND expires > ?')
 
 function getWebSession(req) {
   const sid = parseCookies(req).parlor_sid
@@ -448,10 +448,14 @@ async function route(req, res) {
   if (method !== 'GET') requireCsrf(req, ws)
   const did = session.did
 
+  // Signs out this browser only. The account's OAuth session is shared by its
+  // web sessions, so it is revoked only when no other live web session uses it.
   if (method === 'POST' && path === '/api/logout') {
-    dropViewsForDid(did)
-    qSessionDelDid.run(did)
-    await oauth.revoke(did).catch((err) => log('revoke failed', err.message))
+    qSessionDel.run(ws.sidHash)
+    if (qSessionLive.get(did, Date.now()).n === 0) {
+      dropViewsForDid(did)
+      await oauth.revoke(did).catch((err) => log('revoke failed', err.message))
+    }
     res.setHeader('Set-Cookie', cookie('parlor_sid', '', { maxAge: 0 }))
     return send(res, 200, { ok: true })
   }

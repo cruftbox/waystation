@@ -338,9 +338,19 @@ try {
   const bList2 = await call(B, '/api/spaces')
   check('space no longer under "Member of"', !bList2.data.member?.some((s) => s.uri === space))
 
+  // Sign-out is per device: a second sign-in for the same account survives
+  // the first one signing out, and its own sign-out then ends it.
+  const B2 = await signIn(browser, member, { host: false })
   const out = await call(B, '/api/logout', { method: 'POST', body: {} })
   const after = await call(B, '/api/me')
   check('sign out ends the session', out.status === 200 && after.data.signedIn === false)
+  const b2Me = await call(B2, '/api/me')
+  const b2List = await call(B2, '/api/spaces')
+  check('other device stays signed in', b2Me.data.signedIn === true && b2List.status === 200,
+    `${b2Me.data.signedIn} ${b2List.status}`)
+  const out2 = await call(B2, '/api/logout', { method: 'POST', body: {} })
+  const after2 = await call(B2, '/api/me')
+  check('last device signs out', out2.status === 200 && after2.data.signedIn === false)
 } catch (err) {
   fail++
   console.log(`FAIL  ${err.message}`)
