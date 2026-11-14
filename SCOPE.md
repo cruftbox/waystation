@@ -76,6 +76,14 @@ Out of scope until beta: broader UI work, deployment polish, and abstractions ar
 8. After 2026-12-01.
 9. Attachments done. 40/40 end-to-end checks on the hosted site, including a PDF near the 12 MB cap through Apache and mod_security. Codex review: three findings (download slot released before sending, stale credential on downloads, browser cache shared across accounts) fixed; the 10 s credential window is a deliberate trade-off.
 
+## Open items (2026-11-14)
+
+- **Hosted e2e can sign the owner out.** A new sign-in whose host checkbox differs ends that account's web sessions of the other scope, so `npm run e2e` against the hosted site (signs in as the owner with host scope) can sign the owner out elsewhere. Run e2e against a local server.
+- **Test-namespace lexicons.** `com.cruftbox.clockwork.parlorspace` and `.parlormessage` stay published on the sandbox bot account because the local `.env` uses them (see README). They go away with the alpha.
+- **No image thumbnails.** Each chat load downloads every image in full.
+- **Space deleted outside Parlor.** Its entry stays in the owner's list until clicked; opening it then removes it.
+- **Beta revalidation** (plan step 8): lexicons and the `_lexicon.parlor.cruftmanor.com` record point at the sandbox bot account, which ends with the alpha.
+
 ## Future work
 
 - **Reaction emoji.** Let members react to a message with an emoji. Spaces has no reaction feature, so a reaction would be its own record type (for example `com.cruftmanor.parlor.reaction`, holding the message URI and the emoji) written into the reacting member's repo and counted under the message. Needs: the lexicon published, the sign-in scope extended to that collection (everyone signs in again once), and a way to remove one's own reaction. Not designed or tested.
