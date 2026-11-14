@@ -76,6 +76,10 @@ Out of scope until beta: broader UI work, deployment polish, and abstractions ar
 8. After 2026-12-01.
 9. Attachments done. 40/40 end-to-end checks on the hosted site, including a PDF near the 12 MB cap through Apache and mod_security. Codex review: three findings (download slot released before sending, stale credential on downloads, browser cache shared across accounts) fixed; the 10 s credential window is a deliberate trade-off.
 
+## Future work
+
+- **Reaction emoji.** Let members react to a message with an emoji. Spaces has no reaction feature, so a reaction would be its own record type (for example `com.cruftmanor.parlor.reaction`, holding the message URI and the emoji) written into the reacting member's repo and counted under the message. Needs: the lexicon published, the sign-in scope extended to that collection (everyone signs in again once), and a way to remove one's own reaction. Not designed or tested.
+
 ## Rules
 
 - Credentials and OAuth session data never enter the repository. Local secrets live in `.env`.
