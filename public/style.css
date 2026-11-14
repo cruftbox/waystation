@@ -100,7 +100,9 @@ label.attach:focus-within { outline: 2px solid var(--accent); outline-offset: 2p
   background: var(--panel); color: var(--text); border: 1px solid var(--line);
 }
 .reactions button.mine { border-color: var(--accent); background: var(--mine); }
-.reactions .react-add { color: var(--muted); padding: 2px 9px; }
+.reactions .react-add { color: var(--muted); padding: 1px 7px; display: inline-flex; align-items: center; }
+.reactions .react-add:hover, .reactions .react-add:focus-visible { color: var(--accent); }
+.reactions .react-add svg { display: block; }
 .palette {
   position: absolute; z-index: 10; display: grid; grid-template-columns: repeat(8, 34px); gap: 2px;
   padding: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px;

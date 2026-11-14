@@ -239,7 +239,8 @@ function reactionRow(m) {
     b.addEventListener('click', () => react(m.uri, r.emoji, !r.mine))
     row.append(b)
   }
-  const add = el('button', '+', 'react-add')
+  const add = el('button', undefined, 'react-add')
+  add.append(reactIcon())
   add.type = 'button'
   add.title = 'Add a reaction'
   add.setAttribute('aria-label', 'Add a reaction')
@@ -249,6 +250,32 @@ function reactionRow(m) {
   })
   row.append(add)
   return row
+}
+
+// Smiley face with a small plus, drawn in the text color.
+function reactIcon() {
+  const NS = 'http://www.w3.org/2000/svg'
+  const svg = document.createElementNS(NS, 'svg')
+  svg.setAttribute('viewBox', '0 0 24 24')
+  svg.setAttribute('width', '18')
+  svg.setAttribute('height', '18')
+  svg.setAttribute('aria-hidden', 'true')
+  const parts = [
+    ['path', { d: 'M20.5 11.2A8.5 8.5 0 1 1 12.8 3.5', fill: 'none' }],
+    ['circle', { cx: '8.8', cy: '10', r: '1.1', fill: 'currentColor', stroke: 'none' }],
+    ['circle', { cx: '14.2', cy: '10', r: '1.1', fill: 'currentColor', stroke: 'none' }],
+    ['path', { d: 'M8 14.2c1 1.5 2.4 2.2 3.9 2.2s2.9-.7 3.9-2.2', fill: 'none' }],
+    ['path', { d: 'M19 2v6M16 5h6', fill: 'none' }],
+  ]
+  for (const [tag, attrs] of parts) {
+    const n = document.createElementNS(NS, tag)
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v)
+    svg.append(n)
+  }
+  svg.setAttribute('stroke', 'currentColor')
+  svg.setAttribute('stroke-width', '1.7')
+  svg.setAttribute('stroke-linecap', 'round')
+  return svg
 }
 
 async function react(message, emoji, on) {
