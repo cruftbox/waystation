@@ -311,7 +311,7 @@ try {
     return !!img && img.complete && img.naturalWidth === 2
   }))
   check('UI shows the image inline', imgOk.ok, `${imgOk.ms} ms`)
-  const pdfLink = await A.page.locator('#messages a.pdf').innerText().catch(() => '')
+  const pdfLink = await A.page.locator('#messages a.pdf', { hasText: 'Test Module.pdf' }).innerText().catch(() => '')
   check('UI shows the PDF as a link', pdfLink.startsWith('PDF: Test Module.pdf'), pdfLink)
   await A.page.screenshot({ path: (process.env.SCREENSHOT ?? 'test/e2e-owner.png').replace(/\.png$/, '-files.png'), fullPage: true })
 
