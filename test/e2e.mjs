@@ -236,6 +236,10 @@ try {
   const tooLong = await call(B, '/api/space/message', { method: 'POST', body: { uri: space, text: 'x'.repeat(1001) } })
   check('over-length message refused', tooLong.status === 400, `${tooLong.status} ${tooLong.data.error}`)
 
+  const preActive = await call(B, `/api/space?uri=${encodeURIComponent(space)}`)
+  check('added member who has not written is not listed as active', Array.isArray(preActive.data.active)
+    && !preActive.data.active.some((a) => a.handle === member.handle), JSON.stringify(preActive.data.active))
+
   const html = '<img src=x onerror=alert(1)> **hi**'
   const t0 = Date.now()
   const pA = await call(A, '/api/space/message', { method: 'POST', body: { uri: space, text: 'Hello from the owner.' } })
@@ -255,6 +259,9 @@ try {
     return t.includes('Hello from the owner.') && t.some((x) => x.startsWith('Hello from the member.'))
   })
   check('member sees both messages', seenByB.ok, `${Date.now() - t0} ms after posting`)
+  const activeB = (await call(B, `/api/space?uri=${encodeURIComponent(space)}`)).data.active ?? []
+  check('member sees both writers as active', activeB.some((a) => a.handle === owner.handle && !a.me)
+    && activeB.some((a) => a.handle === member.handle && a.me), JSON.stringify(activeB))
 
   // UI renders text, not HTML.
   await A.page.reload()
@@ -264,6 +271,11 @@ try {
   const rendered = await A.page.locator('#messages').innerText()
   const imgs = await A.page.locator('#messages img').count()
   check('UI shows messages as plain text', rendered.includes('<img src=x') && imgs === 0)
+  const panel = await waitFor('active panel', async () => {
+    const items = await A.page.$$eval('#active-list li', (li) => li.map((x) => x.textContent))
+    return items.includes(owner.handle) && items.includes(member.handle) && items
+  }, 10000)
+  check('UI lists active members', panel.ok && !(await A.page.isHidden('#active')), JSON.stringify(panel.v ?? null))
   await A.page.screenshot({ path: process.env.SCREENSHOT ?? 'test/e2e-owner.png', fullPage: true })
 
   // UI post path.
@@ -441,6 +453,8 @@ try {
     return r.data.messages && !r.data.messages.some((m) => m.text.startsWith('Hello from the member.'))
   })
   check("removed member's messages hidden from owner", hidden.ok, `${hidden.ms} ms`)
+  const activeAfter = (await call(A, `/api/space?uri=${encodeURIComponent(space)}`)).data.active ?? []
+  check('removed member no longer listed as active', !activeAfter.some((a) => a.handle === member.handle), JSON.stringify(activeAfter))
   const rxHidden = (await stateA()).find((m) => m.uri === ownerMsg.uri)?.reactions ?? []
   check("removed member's reactions hidden", !rxHidden.some((r) => r.emoji === '🎲') && rxHidden.some((r) => r.emoji === '🐉'),
     JSON.stringify(rxHidden.map((r) => [r.emoji, r.count])))

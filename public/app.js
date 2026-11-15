@@ -152,6 +152,9 @@ async function openSpace(uri, name) {
   fileNodes.clear()
   $('empty').hidden = true
   $('chat').hidden = false
+  $('active').hidden = false
+  $('active-list').replaceChildren()
+  $('active-head').textContent = 'Active'
   $('chat-name').textContent = name || 'Space'
   $('messages').replaceChildren(el('li', 'Loading…', 'small empty-state'))
   note()
@@ -176,12 +179,14 @@ async function poll() {
     if (!data.unchanged) {
       current.version = data.version
       renderMessages(data.messages)
+      renderActive(data.active ?? [])
     }
   } catch (err) {
     flash(err.message)
     if (err.code === 'NoAccess') {
       current = null
       $('chat').hidden = true
+      $('active').hidden = true
       $('empty').hidden = false
       loadSpaces().catch(() => {})
       return
@@ -206,6 +211,13 @@ function stopPolling() {
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && current) poll()
 })
+
+// Members who have written in this space (posted or reacted), from the
+// server's writer list.
+function renderActive(active) {
+  $('active-head').textContent = `Active (${active.length})`
+  $('active-list').replaceChildren(...active.map((a) => el('li', a.handle, a.me ? 'me' : undefined)))
+}
 
 function renderMessages(messages) {
   const list = $('messages')

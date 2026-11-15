@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy · Parlor</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/theme.js"></script>
+</head>
+<body>
+  <header>
+    <h1><a href="/">Parlor</a></h1>
+    <div class="head-right">
+      <nav class="pages"><a href="/about">About</a><a href="/privacy">Privacy</a></nav>
+      <label class="theme-pick">Theme
+        <select id="theme">
+          <option value="system">System</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </label>
+    </div>
+  </header>
+  <main>
+    <article class="card page">
+      <h2>Short version</h2>
+      <p class="notice">
+        Nothing you post in Parlor is private from the operator of this Parlor server
+        or from the people who run the Spaces servers. Do not post personal information,
+        or anything you need to stay private.
+      </p>
+
+      <h2>What the operator of this Parlor server can see</h2>
+      <p>
+        Your browser talks only to the Parlor server, and the Parlor server makes every
+        Spaces call for you. To do that it holds your OAuth session (tokens and signing key).
+        Sessions are encrypted in Parlor's database, but the key that decrypts them is on
+        the same server. The operator of this Parlor server can therefore read every space
+        that a signed-in user belongs to. Messages and files also pass through the server
+        in plain form on their way to your browser.
+      </p>
+
+      <h2>What Parlor stores</h2>
+      <ul>
+        <li>Your signed-in session, encrypted, until you sign out or it expires.</li>
+        <li>A directory of spaces created through Parlor: space names, owners, and the
+          accounts (DID and handle) added as members.</li>
+        <li>The spaces you opened from an invite link, so they stay in your sidebar.</li>
+        <li>A server log with sign-ins, spaces created, members added or removed, and the
+          type and size of each file posted, identified by account and space. The log
+          does not contain message text.</li>
+      </ul>
+      <p>
+        Messages are not written to Parlor's database. Parlor keeps them in memory while a
+        space is open and reads them again from the Spaces servers when needed.
+      </p>
+      <p>
+        Your browser keeps a session cookie and, if you pick one, your theme choice.
+      </p>
+
+      <h2>Who else can read your posts</h2>
+      <ul>
+        <li>Everyone who is a member of the space.</li>
+        <li>The people who run the Spaces sandbox and the servers that host members'
+          accounts. Spaces content is not end-to-end encrypted.</li>
+      </ul>
+
+      <h2>Permanence</h2>
+      <p>
+        Your messages, reactions and files are records in your own account's repository.
+        Parlor has no edit or delete. Being removed from a space does not erase what you
+        posted there, and the space being deleted does not remove members' records.
+      </p>
+
+      <h2>Status</h2>
+      <p>
+        Parlor is alpha software running against the Spaces alpha sandbox. This page
+        describes how this version works and will change as Spaces does.
+        See <a href="/about">About</a> for who runs it.
+      </p>
+    </article>
+  </main>
+</body>
+</html>

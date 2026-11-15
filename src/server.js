@@ -36,6 +36,9 @@ const STATIC = {
   '/': ['index.html', 'text/html; charset=utf-8'],
   '/app.js': ['app.js', 'text/javascript; charset=utf-8'],
   '/style.css': ['style.css', 'text/css; charset=utf-8'],
+  '/theme.js': ['theme.js', 'text/javascript; charset=utf-8'],
+  '/privacy': ['privacy.html', 'text/html; charset=utf-8'],
+  '/about': ['about.html', 'text/html; charset=utf-8'],
 }
 const staticCache = new Map()
 function staticFile(name) {
@@ -568,9 +571,15 @@ async function route(req, res) {
     const messages = view.list()
     const reactions = view.reactionSummary()
     const reactors = [...reactions.values()].flatMap((list) => list.flatMap((r) => r.authors.slice(0, MAX_REACTOR_NAMES)))
-    const handles = await withHandles([...messages.map((m) => m.author), ...reactors])
+    // Active members: every current writer, meaning anyone who has posted
+    // or reacted. listWriters drops removed members; added members who
+    // never wrote do not appear.
+    const writers = [...view.writers]
+    const handles = await withHandles([...messages.map((m) => m.author), ...reactors, ...writers])
     return send(res, 200, {
       ...base,
+      active: writers.map((w) => ({ handle: handles[w], me: w === did }))
+        .sort((a, b) => a.handle.localeCompare(b.handle)),
       messages: messages.map((m) => ({
         uri: m.uri,
         author: handles[m.author],

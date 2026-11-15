@@ -5,14 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Parlor</title>
   <link rel="stylesheet" href="/style.css">
+  <script src="/theme.js"></script>
   <script src="/app.js" defer></script>
 </head>
 <body>
   <header>
     <h1>Parlor</h1>
-    <div id="who" hidden>
-      <span id="who-handle"></span>
-      <button id="logout" type="button" class="link">Sign out</button>
+    <div class="head-right">
+      <nav class="pages"><a href="/about">About</a><a href="/privacy">Privacy</a></nav>
+      <label class="theme-pick">Theme
+        <select id="theme">
+          <option value="system">System</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </label>
+      <div id="who" hidden>
+        <span id="who-handle"></span>
+        <button id="logout" type="button" class="link">Sign out</button>
+      </div>
     </div>
   </header>
 
@@ -24,7 +35,9 @@
       <p class="notice">
         Parlor is a test client for atproto Spaces on the Spaces alpha sandbox.
         The sandbox is shared and Spaces content is not end-to-end encrypted:
-        the people who run the sandbox can read it. Do not post anything private.
+        the people who run the sandbox can read it, and so can the operator of
+        this Parlor server. Do not post anything private.
+        <a href="/privacy">Privacy details</a>.
       </p>
       <form id="login-form">
         <label for="handle">Your handle</label>
@@ -98,6 +111,11 @@
         <p id="post-note" class="small" aria-live="polite"></p>
       </form>
     </section>
+    <aside id="active" class="card" hidden aria-labelledby="active-head">
+      <h2 id="active-head">Active</h2>
+      <ul id="active-list"></ul>
+      <p class="small">Members who have posted or reacted here.</p>
+    </aside>
     <section id="empty" class="card">
       <p>Pick a space on the left, or open one from an invite link.</p>
     </section>
