@@ -122,7 +122,8 @@ button.space.active { background: var(--mine); border-color: var(--line); }
 .page { max-width: 680px; width: 100%; margin: 0 auto; line-height: 1.6; align-self: flex-start; }
 .page h2 { font-size: 17px; margin: 20px 0 6px; }
 .page h2:first-child { margin-top: 0; }
-.page ul { padding-left: 20px; }
+.page ul, .page ol { padding-left: 22px; }
+.page li + li { margin-top: 4px; }
 #messages {
   list-style: none; margin: 0; padding: 8px; flex: 1; overflow-y: auto;
   background: var(--panel); border: 1px solid var(--line); border-radius: 8px; min-height: 200px;
