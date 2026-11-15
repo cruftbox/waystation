@@ -1,4 +1,4 @@
-// Parlor HTTP server. The browser talks only to this server; this server
+// Waystation HTTP server. The browser talks only to this server; this server
 // holds each user's OAuth session and talks to atproto hosts.
 
 import { createServer } from 'node:http'
@@ -180,7 +180,7 @@ const FILE_CRED_MAX_AGE_MS = 10000
 const MAX_REACTOR_NAMES = 20
 const inFlight = { upload: 0, download: 0 }
 async function withSlot(kind, max, fn) {
-  if (inFlight[kind] >= max) throw new HttpError(503, 'Busy', 'Parlor is busy with other files; try again shortly.')
+  if (inFlight[kind] >= max) throw new HttpError(503, 'Busy', 'Waystation is busy with other files; try again shortly.')
   inFlight[kind]++
   try {
     return await fn()
@@ -219,7 +219,7 @@ const qSessionDel = db.prepare('DELETE FROM web_session WHERE sid_hash = ?')
 const qSessionLive = db.prepare('SELECT COUNT(*) AS n FROM web_session WHERE did = ? AND expires > ?')
 
 function getWebSession(req) {
-  const sid = parseCookies(req).parlor_sid
+  const sid = parseCookies(req).waystation_sid
   if (!sid) return null
   const row = qSessionGet.get(sha256(sid))
   if (!row || row.expires < Date.now()) return null
@@ -338,7 +338,7 @@ function spaceFromInput(input) {
   const space = parseSpaceUri(s)
   if (!space) throw new HttpError(400, 'BadSpace', 'That is not a space link or space URI.')
   if (space.spaceType !== config.spaceType) {
-    throw new HttpError(400, 'WrongSpaceType', `Parlor opens spaces of type ${config.spaceType} only.`)
+    throw new HttpError(400, 'WrongSpaceType', `Waystation opens spaces of type ${config.spaceType} only.`)
   }
   return space
 }
@@ -356,7 +356,7 @@ async function withHandles(dids) {
   return out
 }
 
-const UPSTREAM_MESSAGE = 'A server Parlor depends on could not be reached or returned an error. Try again shortly.'
+const UPSTREAM_MESSAGE = 'A server Waystation depends on could not be reached or returned an error. Try again shortly.'
 
 // Map protocol errors to messages a person can act on. Details go to the
 // log, not to the browser.
@@ -411,7 +411,7 @@ async function route(req, res) {
         scope: wantOwner ? scopes().owner : scopes().member,
         state: nonce,
       })
-      res.setHeader('Set-Cookie', cookie('parlor_login', nonce, { maxAge: 900, path: '/oauth' }))
+      res.setHeader('Set-Cookie', cookie('waystation_login', nonce, { maxAge: 900, path: '/oauth' }))
       return redirect(res, authUrl.toString())
     } catch (err) {
       log('authorize failed', err.message)
@@ -421,17 +421,17 @@ async function route(req, res) {
 
   if (method === 'GET' && path === callbackPath) {
     limiter.hit(`login:${clientIp(req)}`, 20)
-    const clear = cookie('parlor_login', '', { maxAge: 0, path: '/oauth' })
+    const clear = cookie('waystation_login', '', { maxAge: 0, path: '/oauth' })
     try {
       const { session, state } = await oauth.callback(url.searchParams)
-      const nonce = parseCookies(req).parlor_login
+      const nonce = parseCookies(req).waystation_login
       if (!nonce || !state || !safeEqual(nonce, state)) {
         await oauth.revoke(session.did).catch(() => {})
         throw new UserFacingError('Sign-in was not started from this browser. Please try again.')
       }
       if (config.allowedDids.length && !config.allowedDids.includes(session.did)) {
         await oauth.revoke(session.did).catch(() => {})
-        throw new UserFacingError('This account is not allowed on this Parlor server.')
+        throw new UserFacingError('This account is not allowed on this Waystation server.')
       }
       const sid = token()
       const now = Date.now()
@@ -441,7 +441,7 @@ async function route(req, res) {
       qSessionTrim.run(session.did, session.did)
       qSessionPut.run(sha256(sid), session.did, token(), now, now + config.sessionDays * 86400000, host)
       for (const k of [...views.keys()]) if (k.startsWith(`${session.did} `)) views.delete(k)
-      res.setHeader('Set-Cookie', [clear, cookie('parlor_sid', sid, { maxAge: config.sessionDays * 86400 })])
+      res.setHeader('Set-Cookie', [clear, cookie('waystation_sid', sid, { maxAge: config.sessionDays * 86400 })])
       log('sign-in', session.did)
       return redirect(res, '/')
     } catch (err) {
@@ -488,12 +488,12 @@ async function route(req, res) {
       dropViewsForDid(did)
       await oauth.revoke(did).catch((err) => log('revoke failed', err.message))
     }
-    res.setHeader('Set-Cookie', cookie('parlor_sid', '', { maxAge: 0 }))
+    res.setHeader('Set-Cookie', cookie('waystation_sid', '', { maxAge: 0 }))
     return send(res, 200, { ok: true })
   }
 
   if (method === 'GET' && path === '/api/spaces') {
-    // Spaces made outside Parlor are opened by invite link. listSpaces would
+    // Spaces made outside Waystation are opened by invite link. listSpaces would
     // need an extra read scope over every space type.
     const owned = q.spacesOwned.all(did).map((r) => ({ uri: r.uri, name: r.name }))
     const member = q.spacesMember.all(did).filter((r) => r.owner_did !== did)
@@ -514,7 +514,7 @@ async function route(req, res) {
     const name = cleanName(body.name)
     if (!name) throw new HttpError(400, 'NameRequired', 'Give the space a name.')
     if (q.spacesOwnedCount.get(did).n >= config.maxSpacesPerOwner) {
-      throw new HttpError(429, 'TooManySpaces', `You can host up to ${config.maxSpacesPerOwner} spaces in Parlor.`)
+      throw new HttpError(429, 'TooManySpaces', `You can host up to ${config.maxSpacesPerOwner} spaces in Waystation.`)
     }
     const uri = await createSpace(session)
     q.spacePut.run(uri, did, name, Date.now())
@@ -566,7 +566,7 @@ async function route(req, res) {
       isOwner: space.authority === did,
       version: view.version,
       warning: view.error ? 'Some messages could not be read; retrying.'
-        : view.tooManyWriters ? 'This space has more writers than Parlor shows; some are not displayed.' : null,
+        : view.tooManyWriters ? 'This space has more writers than Waystation shows; some are not displayed.' : null,
     }
     if (since === view.version) return send(res, 200, { ...base, unchanged: true })
     const messages = view.list()
@@ -650,7 +650,7 @@ async function route(req, res) {
       res.setHeader('Content-Type', att.mime)
       res.setHeader('Content-Length', bytes.length)
       res.setHeader('Content-Disposition', contentDisposition(isImage(att.mime) ? 'inline' : 'attachment', att.name))
-      // No browser caching: the cache is not tied to the Parlor sign-in, so
+      // No browser caching: the cache is not tied to the Waystation sign-in, so
       // another account on the same browser could reuse it.
       res.setHeader('Cache-Control', 'private, no-store')
       res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox")
@@ -771,7 +771,7 @@ async function route(req, res) {
       }
       if (memberDid === did) throw new HttpError(400, 'Self', 'You already own this space.')
       if ((await listMembers(session, space)).length >= MAX_MEMBERS) {
-        throw new HttpError(429, 'TooManyMembers', `Parlor spaces are limited to ${MAX_MEMBERS} members.`)
+        throw new HttpError(429, 'TooManyMembers', `Waystation spaces are limited to ${MAX_MEMBERS} members.`)
       }
       await addMember(session, space, memberDid)
       if (q.spaceGet.get(space.uri)) q.memberPut.run(space.uri, memberDid, await displayHandle(memberDid), Date.now())
@@ -824,7 +824,7 @@ setInterval(() => {
 }, 60000).unref()
 
 server.listen(config.port, config.host, () => {
-  log(`Parlor listening on http://${config.host}:${config.port} (public ${config.publicUrl}, space type ${config.spaceType})`)
+  log(`Waystation listening on http://${config.host}:${config.port} (public ${config.publicUrl}, space type ${config.spaceType})`)
 })
 
 function shutdown() {

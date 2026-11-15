@@ -1,4 +1,4 @@
-// End-to-end test against a running Parlor server and the Spaces sandbox.
+// End-to-end test against a running Waystation server and the Spaces sandbox.
 // Signs in two sandbox accounts through the real OAuth pages with a headless
 // browser, then exercises the API as each user.
 //
@@ -6,7 +6,7 @@
 //   PLAYER_HANDLE, PLAYER_MAIN_PASSWORD, PLAYER_APP_PASSWORD  (space owner)
 //   NONMEMBER_HANDLE, NONMEMBER_MAIN_PASSWORD, NONMEMBER_APP_PASSWORD (member)
 //   PDS_URL
-// Also: PARLOR_URL (default http://127.0.0.1:8790), BROWSER (path to Edge/Chrome)
+// Also: WAYSTATION_URL (default http://127.0.0.1:8790), BROWSER (path to Edge/Chrome)
 //
 // Cleanup deletes the test space and clears both accounts' records in it
 // using app passwords.
@@ -21,7 +21,7 @@ for (const line of readFileSync(envFile, 'utf8').split(/\r?\n/)) {
   const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/)
   if (m) sandbox[m[1]] = m[2].replace(/^["']|["']$/g, '')
 }
-const PARLOR = process.env.PARLOR_URL ?? 'http://127.0.0.1:8790'
+const WAYSTATION = process.env.WAYSTATION_URL ?? 'http://127.0.0.1:8790'
 const BROWSER = process.env.BROWSER ?? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'
 const PDS = sandbox.PDS_URL
 
@@ -40,11 +40,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 async function signIn(browser, user, { host }) {
   const context = await browser.newContext()
   const page = await context.newPage()
-  await page.goto(PARLOR)
+  await page.goto(WAYSTATION)
   await page.fill('#handle', user.handle)
   if (host) await page.check('#owner')
   await page.click('#login-form button[type=submit]')
-  await page.waitForURL((u) => u.origin !== new URL(PARLOR).origin, { timeout: 30000 })
+  await page.waitForURL((u) => u.origin !== new URL(WAYSTATION).origin, { timeout: 30000 })
   await page.waitForSelector('input[name=password]', { timeout: 30000 })
   const id = page.locator('input[name=identifier]')
   if (await id.isEditable()) await id.fill(user.handle)
@@ -53,7 +53,7 @@ async function signIn(browser, user, { host }) {
   // Consent screen: accept whatever the primary button is called.
   const deadline = Date.now() + 45000
   while (Date.now() < deadline) {
-    if (page.url().startsWith(PARLOR)) break
+    if (page.url().startsWith(WAYSTATION)) break
     const accept = page.getByRole('button', { name: /^(Accept|Authorize|Allow|Continue)$/i })
     // The page may navigate away mid-check; that is expected.
     if (await accept.count().catch(() => 0)) {
@@ -61,9 +61,9 @@ async function signIn(browser, user, { host }) {
     }
     await sleep(1000)
   }
-  if (!page.url().startsWith(PARLOR)) {
+  if (!page.url().startsWith(WAYSTATION)) {
     const text = (await page.innerText('body').catch(() => '')).slice(0, 800)
-    throw new Error(`${user.name}: sign-in did not return to Parlor. Page says:\n${text}`)
+    throw new Error(`${user.name}: sign-in did not return to Waystation. Page says:\n${text}`)
   }
   await page.waitForSelector('#who-handle', { state: 'visible', timeout: 20000 })
   const me = await page.evaluate(() => fetch('/api/me').then((r) => r.json()))
@@ -145,7 +145,7 @@ function tinyPng() {
 
 // One-page PDF with placeholder text.
 function tinyPdf() {
-  const stream = 'BT /F1 12 Tf 20 50 Td (Parlor test module) Tj ET'
+  const stream = 'BT /F1 12 Tf 20 50 Td (Waystation test module) Tj ET'
   const objs = [
     '<< /Type /Catalog /Pages 2 0 R >>',
     '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',

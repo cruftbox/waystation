@@ -1,13 +1,13 @@
 {
   "lexicon": 1,
-  "id": "com.cruftmanor.parlor.space",
+  "id": "com.cruftmanor.waystation.space",
   "defs": {
     "main": {
       "type": "space",
       "key": "tid",
-      "title": "Parlor chat room",
-      "description": "A chat room in Parlor. Members post messages and reactions into their own repos in the space.",
-      "collections": ["com.cruftmanor.parlor.message", "com.cruftmanor.parlor.reaction"]
+      "title": "Waystation chat room",
+      "description": "A chat room in Waystation. Members post messages and reactions into their own repos in the space.",
+      "collections": ["com.cruftmanor.waystation.message", "com.cruftmanor.waystation.reaction"]
     }
   }
 }

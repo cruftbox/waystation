@@ -137,13 +137,13 @@ export function paletteEmoji(s) {
   return typeof s === 'string' && s.length <= 16 ? EMOJI_BY_BARE.get(bareEmoji(s)) ?? null : null
 }
 
-// The URI Parlor uses for a message: at://<author>/<collection>/<rkey>.
+// The URI Waystation uses for a message: at://<author>/<collection>/<rkey>.
 export function messageUri(repo, rkey) {
   return `at://${repo}/${config.messageCollection}/${rkey}`
 }
 
 // { subject, emoji } from a reaction record, or null. The subject must be a
-// Parlor message URI; the emoji must be in the palette.
+// Waystation message URI; the emoji must be in the palette.
 export function reactionFromRecord(value) {
   if (!value || typeof value !== 'object') return null
   const emoji = paletteEmoji(value.emoji)
@@ -395,7 +395,7 @@ export class SpaceView {
     const sweep = now - this.lastSweep >= config.fullSweepSeconds * 1000
     // An existing credential keeps working after the viewer is removed
     // (until it expires, about 10 minutes). Re-authorizing on each sweep
-    // bounds how long a removed member can keep reading through Parlor.
+    // bounds how long a removed member can keep reading through Waystation.
     if (sweep && this.lastSweep) this.cred = null
     if (sweep) this.lastSweep = now
     const dirty = await this.pollWriters()

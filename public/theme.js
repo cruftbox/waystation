@@ -1,7 +1,7 @@
 // Theme choice: System (follow the OS), Light or Dark. Loaded without defer
 // so the saved choice applies before first paint. Every page includes it.
 (function () {
-  const KEY = 'parlor_theme'
+  const KEY = 'waystation_theme'
   const root = document.documentElement
   function apply(t) {
     if (t === 'light' || t === 'dark') root.dataset.theme = t

@@ -14,7 +14,7 @@ export function loadEnvFile(path = '.env') {
   }
 }
 
-loadEnvFile(process.env.PARLOR_ENV_FILE ?? '.env')
+loadEnvFile(process.env.WAYSTATION_ENV_FILE ?? '.env')
 
 const env = process.env
 
@@ -32,13 +32,13 @@ export const config = {
   publicUrl: (env.PUBLIC_URL ?? `http://127.0.0.1:${int('PORT', 8790)}`).replace(/\/$/, ''),
   host: env.HOST ?? '127.0.0.1',
   port: int('PORT', 8790),
-  dbPath: env.DB_PATH ?? './data/parlor.db',
+  dbPath: env.DB_PATH ?? './data/waystation.db',
 
   // Lexicon names. The space type needs a published declaration
   // (com.atproto.lexicon.schema record + _lexicon DNS TXT) or OAuth fails.
-  spaceType: env.SPACE_TYPE ?? 'com.cruftmanor.parlor.space',
-  messageCollection: env.MESSAGE_COLLECTION ?? 'com.cruftmanor.parlor.message',
-  reactionCollection: env.REACTION_COLLECTION ?? 'com.cruftmanor.parlor.reaction',
+  spaceType: env.SPACE_TYPE ?? 'com.cruftmanor.waystation.space',
+  messageCollection: env.MESSAGE_COLLECTION ?? 'com.cruftmanor.waystation.message',
+  reactionCollection: env.REACTION_COLLECTION ?? 'com.cruftmanor.waystation.reaction',
 
   // Message length cap in characters (graphemes are close enough for a cap).
   maxMessageLength: int('MAX_MESSAGE_LENGTH', 1000),
@@ -66,7 +66,7 @@ export const config = {
   maxPdfBytes: int('MAX_PDF_BYTES', 12 * 1024 * 1024),
   // Image thumbnails, made by the poster's browser and shown in the chat.
   maxThumbBytes: int('MAX_THUMB_BYTES', 256 * 1024),
-  // Spaces a single user may create through Parlor.
+  // Spaces a single user may create through Waystation.
   maxSpacesPerOwner: int('MAX_SPACES_PER_OWNER', 20),
 
   // 64 hex chars. Encrypts OAuth sessions at rest. Required.

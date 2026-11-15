@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Privacy · Parlor</title>
+  <title>Privacy · Waystation</title>
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/style.css">
   <script src="/theme.js"></script>
 </head>
 <body>
   <header>
-    <h1><a href="/">Parlor</a></h1>
+    <h1><a href="/">Waystation</a></h1>
     <div class="head-right">
       <nav class="pages"><a href="/about">About</a><a href="/privacy">Privacy</a></nav>
       <label class="theme-pick">Theme
@@ -26,25 +26,25 @@
     <article class="card page">
       <h2>Short version</h2>
       <p class="notice">
-        Nothing you post in Parlor is private from the operator of this Parlor server
+        Nothing you post in Waystation is private from the operator of this Waystation server
         or from the people who run the Spaces servers. Do not post personal information,
         or anything you need to stay private.
       </p>
 
-      <h2>What the operator of this Parlor server can see</h2>
+      <h2>What the operator of this Waystation server can see</h2>
       <p>
-        Your browser talks only to the Parlor server, and the Parlor server makes every
+        Your browser talks only to the Waystation server, and the Waystation server makes every
         Spaces call for you. To do that it holds your OAuth session (tokens and signing key).
-        Sessions are encrypted in Parlor's database, but the key that decrypts them is on
-        the same server. The operator of this Parlor server can therefore read every space
+        Sessions are encrypted in Waystation's database, but the key that decrypts them is on
+        the same server. The operator of this Waystation server can therefore read every space
         that a signed-in user belongs to. Messages and files also pass through the server
         in plain form on their way to your browser.
       </p>
 
-      <h2>What Parlor stores</h2>
+      <h2>What Waystation stores</h2>
       <ul>
         <li>Your signed-in session, encrypted, until you sign out or it expires.</li>
-        <li>A directory of spaces created through Parlor: space names, owners, and the
+        <li>A directory of spaces created through Waystation: space names, owners, and the
           accounts (DID and handle) added as members.</li>
         <li>The spaces you opened from an invite link, so they stay in your sidebar.</li>
         <li>A server log with sign-ins, spaces created, members added or removed, and the
@@ -52,7 +52,7 @@
           does not contain message text.</li>
       </ul>
       <p>
-        Messages are not written to Parlor's database. Parlor keeps them in memory while a
+        Messages are not written to Waystation's database. Waystation keeps them in memory while a
         space is open and reads them again from the Spaces servers when needed.
       </p>
       <p>
@@ -69,13 +69,13 @@
       <h2>Permanence</h2>
       <p>
         Your messages, reactions and files are records in your own account's repository.
-        Parlor has no edit or delete. Being removed from a space does not erase what you
+        Waystation has no edit or delete. Being removed from a space does not erase what you
         posted there, and the space being deleted does not remove members' records.
       </p>
 
       <h2>Status</h2>
       <p>
-        Parlor is alpha software running against the Spaces alpha sandbox. This page
+        Waystation is alpha software running against the Spaces alpha sandbox. This page
         describes how this version works and will change as Spaces does.
         See <a href="/about">About</a> for who runs it.
       </p>

@@ -1,5 +1,5 @@
 {
-  "name": "parlor",
+  "name": "waystation",
   "version": "0.1.0",
   "private": true,
   "description": "Lightweight chat client for atproto Spaces",

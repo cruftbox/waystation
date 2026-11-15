@@ -1,5 +1,5 @@
 // SQLite storage (node:sqlite): OAuth state and sessions, web sessions, and
-// the directory of spaces Parlor manages. Message contents are never stored.
+// the directory of spaces Waystation manages. Message contents are never stored.
 
 import { DatabaseSync } from 'node:sqlite'
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'

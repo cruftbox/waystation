@@ -1,17 +1,17 @@
 [Unit]
-Description=Parlor chat client for atproto Spaces
+Description=Waystation chat client for atproto Spaces
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=parlor
-Group=parlor
-WorkingDirectory=/opt/parlor/app
-EnvironmentFile=/etc/parlor/parlor.env
+User=waystation
+Group=waystation
+WorkingDirectory=/opt/waystation/app
+EnvironmentFile=/etc/waystation/waystation.env
 # The env file sets everything; keep .env loading off.
-Environment=PARLOR_ENV_FILE=/nonexistent
-ExecStart=/opt/parlor/node/bin/node src/server.js
+Environment=WAYSTATION_ENV_FILE=/nonexistent
+ExecStart=/opt/waystation/node/bin/node src/server.js
 Restart=on-failure
 RestartSec=5
 
@@ -27,7 +27,7 @@ ProtectControlGroups=true
 RestrictSUIDSGID=true
 LockPersonality=true
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
-ReadWritePaths=/var/lib/parlor
+ReadWritePaths=/var/lib/waystation
 UMask=0077
 
 # Resource limits.

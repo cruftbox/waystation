@@ -1,10 +1,10 @@
 {
   "lexicon": 1,
-  "id": "com.cruftmanor.parlor.message",
+  "id": "com.cruftmanor.waystation.message",
   "defs": {
     "main": {
       "type": "record",
-      "description": "A chat message, written into the author's own repo in a Parlor space.",
+      "description": "A chat message, written into the author's own repo in a Waystation space.",
       "key": "tid",
       "record": {
         "type": "object",

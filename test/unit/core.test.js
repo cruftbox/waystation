@@ -1,12 +1,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-process.env.SPACE_TYPE = 'com.example.parlor.space'
-process.env.MESSAGE_COLLECTION = 'com.example.parlor.message'
-process.env.REACTION_COLLECTION = 'com.example.parlor.reaction'
+process.env.SPACE_TYPE = 'com.example.waystation.space'
+process.env.MESSAGE_COLLECTION = 'com.example.waystation.message'
+process.env.REACTION_COLLECTION = 'com.example.waystation.reaction'
 process.env.MAX_MESSAGE_LENGTH = '10'
 process.env.MAX_MESSAGES_PER_VIEW = '3'
-process.env.PARLOR_ENV_FILE = '/nonexistent'
+process.env.WAYSTATION_ENV_FILE = '/nonexistent'
 
 const { parseSpaceUri, messageFromRecord, compareMessages, SpaceView } = await import('../../src/spaces.js')
 const { openDb, kvStore, makeCipher } = await import('../../src/db.js')
@@ -16,11 +16,11 @@ const { RateLimiter, RateLimitError } = await import('../../src/ratelimit.js')
 
 const OWNER = 'did:plc:4nowfcob4en66jiemgz77efr'
 const OTHER = 'did:plc:3eo7g3hklz26k7kkketzqth7'
-const SPACE = `at://${OWNER}/space/com.example.parlor.space/3n2bgzhi4hp2a`
+const SPACE = `at://${OWNER}/space/com.example.waystation.space/3n2bgzhi4hp2a`
 
 test('parseSpaceUri accepts space URIs and rejects others', () => {
   assert.deepEqual(parseSpaceUri(SPACE), {
-    uri: SPACE, authority: OWNER, spaceType: 'com.example.parlor.space', skey: '3n2bgzhi4hp2a',
+    uri: SPACE, authority: OWNER, spaceType: 'com.example.waystation.space', skey: '3n2bgzhi4hp2a',
   })
   assert.equal(parseSpaceUri(`at://${OWNER}/app.bsky.feed.post/abc`), null)
   assert.equal(parseSpaceUri('https://example.com'), null)
@@ -48,7 +48,7 @@ function view() {
   return new SpaceView({ session: { did: OWNER }, space: parseSpaceUri(SPACE) })
 }
 const op = (rkey, rev, value, extra = {}) => ({
-  collection: 'com.example.parlor.message', rkey, rev, cid: 'bafy', prev: null, value, ...extra,
+  collection: 'com.example.waystation.message', rkey, rev, cid: 'bafy', prev: null, value, ...extra,
 })
 
 test('applyOps adds, updates, deletes and ignores other collections', () => {
@@ -61,9 +61,9 @@ test('applyOps adds, updates, deletes and ignores other collections', () => {
   ])
   assert.deepEqual(v.list().map((m) => m.text), ['one', 'two'])
   assert.equal(v.since.get(OTHER), 'r3')
-  assert.equal(v.list()[0].uri, `at://${OTHER}/com.example.parlor.message/1`)
+  assert.equal(v.list()[0].uri, `at://${OTHER}/com.example.waystation.message/1`)
   const before = v.version
-  v.applyOps(OTHER, [{ collection: 'com.example.parlor.message', rkey: '1', rev: 'r4', cid: null }])
+  v.applyOps(OTHER, [{ collection: 'com.example.waystation.message', rkey: '1', rev: 'r4', cid: null }])
   assert.deepEqual(v.list().map((m) => m.text), ['two'])
   assert.ok(v.version > before)
 })
@@ -272,7 +272,7 @@ test('scopes request upload permission and canUpload reads it', () => {
 
 const { reactionFromRecord, paletteEmoji, REACTION_EMOJI } = await import('../../src/spaces.js')
 const { canReact } = await import('../../src/oauth.js')
-const MSG = (rkey) => `at://${OWNER}/com.example.parlor.message/${rkey}`
+const MSG = (rkey) => `at://${OWNER}/com.example.waystation.message/${rkey}`
 
 test('palette has 16 emoji and matches with or without the variation selector', () => {
   assert.equal(REACTION_EMOJI.length, 16)
@@ -282,7 +282,7 @@ test('palette has 16 emoji and matches with or without the variation selector', 
   assert.equal(paletteEmoji(5), null)
 })
 
-test('reactionFromRecord needs a Parlor message subject and a palette emoji', () => {
+test('reactionFromRecord needs a Waystation message subject and a palette emoji', () => {
   assert.deepEqual(reactionFromRecord({ subject: MSG('r1'), emoji: '👍' }), { subject: MSG('r1'), emoji: '👍' })
   assert.equal(reactionFromRecord({ subject: MSG('r1'), emoji: '🦄' }), null)
   assert.equal(reactionFromRecord({ subject: `at://${OWNER}/app.bsky.feed.post/r1`, emoji: '👍' }), null)
@@ -296,7 +296,7 @@ test('reactions are counted once per author and emoji, only on shown messages, o
   v.writers.add(OTHER)
   v.applyOps(OWNER, [op('r1', '1', { text: 'hi', createdAt: '2026-01-01T00:00:01Z' })])
   const rx = (rkey, emoji, subject = MSG('r1')) => ({
-    collection: 'com.example.parlor.reaction', rkey, rev: '2', cid: 'bafy', value: { subject, emoji },
+    collection: 'com.example.waystation.reaction', rkey, rev: '2', cid: 'bafy', value: { subject, emoji },
   })
   v.applyOps(OTHER, [rx('a', '👍'), rx('b', '👍'), rx('c', '🎲'), rx('d', '👍', MSG('gone'))])
   v.applyOps(OWNER, [rx('e', '👍')])
@@ -305,7 +305,7 @@ test('reactions are counted once per author and emoji, only on shown messages, o
   assert.equal(v.reactionSummary().has(MSG('gone')), false)
   assert.deepEqual(v.ownReactions(OTHER, MSG('r1'), '👍').sort(), ['a', 'b'])
   // Deleting a record removes it; removing a writer hides theirs.
-  v.applyOps(OWNER, [{ collection: 'com.example.parlor.reaction', rkey: 'e', rev: '3', cid: null }])
+  v.applyOps(OWNER, [{ collection: 'com.example.waystation.reaction', rkey: 'e', rev: '3', cid: null }])
   s = v.reactionSummary().get(MSG('r1'))
   assert.equal(s.find((r) => r.emoji === '👍').authors.length, 1)
   v.writers.delete(OTHER)
@@ -316,5 +316,5 @@ test('reactions are counted once per author and emoji, only on shown messages, o
 test('member scope includes the reaction collection and canReact reads it', () => {
   const { member } = scopes()
   assert.equal(canReact(member), true)
-  assert.equal(canReact('atproto space:com.example.parlor.space?authority=*&collection=com.example.parlor.message'), false)
+  assert.equal(canReact('atproto space:com.example.waystation.space?authority=*&collection=com.example.waystation.message'), false)
 })

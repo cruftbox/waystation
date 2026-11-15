@@ -21,7 +21,7 @@ export function maxBytesFor(mime) {
   return 0
 }
 
-// The largest file Parlor accepts of any type.
+// The largest file Waystation accepts of any type.
 export function maxFileBytes() {
   return Math.max(config.maxPdfBytes, config.maxImageBytes)
 }

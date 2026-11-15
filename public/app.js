@@ -1,4 +1,4 @@
-// Parlor browser client. Talks only to the Parlor server. All text from
+// Waystation browser client. Talks only to the Waystation server. All text from
 // the network is inserted with textContent, never as HTML.
 
 const $ = (id) => document.getElementById(id)
@@ -379,7 +379,7 @@ const SHOW_W = 360
 const SHOW_H = 280
 
 // Images inline, from the thumbnail when there is one (click opens the full
-// file); PDFs as a download link. URLs and names come from the Parlor
+// file); PDFs as a download link. URLs and names come from the Waystation
 // server; names are set as text only.
 function fileElement(f) {
   const box = el('div', undefined, 'msg-file')
@@ -522,7 +522,7 @@ $('chat').addEventListener('drop', (ev) => {
   $('post-file').dispatchEvent(new Event('change'))
   if (files.length > 1 && $('post-file').files.length) note('One file per message: the first one is attached.')
 })
-// A file dropped anywhere else would make the browser open it in place of Parlor.
+// A file dropped anywhere else would make the browser open it in place of Waystation.
 for (const type of ['dragover', 'drop']) {
   window.addEventListener(type, (ev) => {
     if (hasFiles(ev) && !$('chat').contains(ev.target)) {
@@ -720,7 +720,7 @@ async function start() {
   const invite = params.get('invite')
   const inviteName = params.get('name')
   if (invite) {
-    try { sessionStorage.setItem('parlor_invite', JSON.stringify({ invite, name: inviteName })) } catch { /* ignore */ }
+    try { sessionStorage.setItem('waystation_invite', JSON.stringify({ invite, name: inviteName })) } catch { /* ignore */ }
   }
   if (error || invite) history.replaceState(null, '', '/')
   if (error) flash(error)
@@ -739,8 +739,8 @@ async function start() {
   await showSignedIn()
   let pending = null
   try {
-    pending = JSON.parse(sessionStorage.getItem('parlor_invite') ?? 'null')
-    sessionStorage.removeItem('parlor_invite')
+    pending = JSON.parse(sessionStorage.getItem('waystation_invite') ?? 'null')
+    sessionStorage.removeItem('waystation_invite')
   } catch { /* ignore */ }
   if (pending?.invite) await openInvite(pending.invite, pending.name)
 }

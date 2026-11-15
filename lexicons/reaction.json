@@ -1,10 +1,10 @@
 {
   "lexicon": 1,
-  "id": "com.cruftmanor.parlor.reaction",
+  "id": "com.cruftmanor.waystation.reaction",
   "defs": {
     "main": {
       "type": "record",
-      "description": "An emoji reaction to a message, written into the reacting member's own repo in a Parlor space. Deleting the record removes the reaction.",
+      "description": "An emoji reaction to a message, written into the reacting member's own repo in a Waystation space. Deleting the record removes the reaction.",
       "key": "tid",
       "record": {
         "type": "object",
@@ -13,14 +13,14 @@
           "subject": {
             "type": "string",
             "format": "at-uri",
-            "description": "The message reacted to: at://<author DID>/com.cruftmanor.parlor.message/<rkey>, within the same space."
+            "description": "The message reacted to: at://<author DID>/com.cruftmanor.waystation.message/<rkey>, within the same space."
           },
           "emoji": {
             "type": "string",
             "maxLength": 16,
             "maxGraphemes": 1,
             "knownValues": ["👍", "👎", "❤️", "😂", "😮", "😢", "😡", "🎉", "🔥", "💯", "🎲", "⚔️", "🛡️", "💀", "🐉", "💰"],
-            "description": "One emoji. Parlor shows only those in knownValues."
+            "description": "One emoji. Waystation shows only those in knownValues."
           },
           "createdAt": { "type": "string", "format": "datetime" }
         }

@@ -51,7 +51,7 @@ export function clientMetadata() {
   }
   return {
     client_id: `${config.publicUrl}/client-metadata.json`,
-    client_name: 'Parlor',
+    client_name: 'Waystation',
     client_uri: config.publicUrl,
     redirect_uris: [`${config.publicUrl}${callbackPath}`],
     scope: owner,
