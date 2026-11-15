@@ -7,3 +7,4 @@ sessions/
 data/
 !.env.example
 *.local.md
+test/e2e-owner*.png
