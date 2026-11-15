@@ -3,6 +3,7 @@
 
 const $ = (id) => document.getElementById(id)
 const POLL_MS = 3000
+const GROUP_MS = 5 * 60 * 1000
 
 let me = null
 let current = null // { uri, name, isOwner, version }
@@ -12,6 +13,13 @@ function flash(text) {
   const el = $('flash')
   el.textContent = text ?? ''
   el.hidden = !text
+}
+
+// Notes about sending, attaching and reacting, shown under the composer
+// where the eye already is.
+function note(text) {
+  $('post-note').textContent = text ?? ''
+  $('post-note').classList.toggle('warn', !!text)
 }
 
 async function api(path, { method = 'GET', body } = {}) {
@@ -145,7 +153,8 @@ async function openSpace(uri, name) {
   $('empty').hidden = true
   $('chat').hidden = false
   $('chat-name').textContent = name || 'Space'
-  $('messages').replaceChildren(el('li', 'Loading…', 'small'))
+  $('messages').replaceChildren(el('li', 'Loading…', 'small empty-state'))
+  note()
   $('members').hidden = true
   $('chat-warning').hidden = true
   for (const b of document.querySelectorAll('#sidebar button.space')) b.classList.remove('active')
@@ -202,17 +211,28 @@ function renderMessages(messages) {
   const list = $('messages')
   const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 40
   if (!messages.length) {
-    list.replaceChildren(el('li', 'No messages yet.', 'small'))
+    list.replaceChildren(el('li', 'No messages yet.', 'small empty-state'))
     fileNodes.clear()
     return
   }
   const used = new Set()
+  let prev = null
   list.replaceChildren(...messages.map((m) => {
-    const li = el('li', undefined, m.mine ? 'msg mine' : 'msg')
-    const head = el('div', undefined, 'msg-head')
-    head.append(el('span', m.author, 'author'), el('time', shortTime(m.createdAt), 'small'))
-    head.lastChild.dateTime = m.createdAt
-    li.append(head)
+    // A message from the same author within GROUP_MS of the one before
+    // continues that run: no name, and the time shows on hover.
+    const cont = prev && prev.author === m.author
+      && Math.abs(Date.parse(m.createdAt) - Date.parse(prev.createdAt)) < GROUP_MS
+    prev = m
+    const li = el('li', undefined, ['msg', m.mine && 'mine', cont && 'cont'].filter(Boolean).join(' '))
+    const time = el('time', shortTime(m.createdAt), cont ? 'small cont-time' : 'small')
+    time.dateTime = m.createdAt
+    if (cont) {
+      li.append(time)
+    } else {
+      const head = el('div', undefined, 'msg-head')
+      head.append(el('span', m.author, 'author'), time)
+      li.append(head)
+    }
     if (m.text) li.append(el('div', m.text, 'text'))
     if (m.file) li.append(cachedFileElement(m, used))
     li.append(reactionRow(m))
@@ -280,12 +300,13 @@ function reactIcon() {
 
 async function react(message, emoji, on) {
   closePalette()
-  if (!me?.canReact) return flash('Sign out and sign in again to allow reactions.')
+  if (!me?.canReact) return note('Sign out and sign in again to allow reactions.')
+  note()
   try {
     await api('/api/space/react', { method: 'POST', body: { uri: current.uri, message, emoji, on } })
     await poll()
   } catch (err) {
-    flash(err.message)
+    note(err.message)
   }
 }
 
@@ -356,13 +377,14 @@ function fileElement(f) {
     }
     a.append(img)
     box.append(a)
-    if (f.thumbUrl) box.append(el('div', `${f.name} · ${fmtSize(f.size)}`, 'small file-caption'))
   } else {
-    const a = el('a', `PDF: ${f.name} (${fmtSize(f.size)})`, 'pdf')
+    const a = el('a', `PDF: ${f.name}`, 'pdf')
     a.href = f.url
     a.download = f.name
     box.append(a)
   }
+  const caption = f.kind === 'image' ? `${f.name} · ${fmtSize(f.size)}` : fmtSize(f.size)
+  box.append(el('div', caption, 'small file-caption'))
   return box
 }
 
@@ -410,6 +432,7 @@ function clearFile() {
   $('file-name').hidden = true
   $('file-clear').hidden = true
   hidePreview()
+  updateComposer()
 }
 
 $('post-file').addEventListener('change', () => {
@@ -417,24 +440,25 @@ $('post-file').addEventListener('change', () => {
   if (!file) return clearFile()
   if (!me?.canUpload) {
     clearFile()
-    return flash('Sign out and sign in again to allow attaching files.')
+    return note('Sign out and sign in again to allow attaching files.')
   }
   const kind = fileKind(file)
   if (!kind) {
     clearFile()
-    return flash('Only PNG, JPEG, GIF, WebP and PDF files can be attached.')
+    return note('Only PNG, JPEG, GIF, WebP and PDF files can be attached.')
   }
   const max = kind === 'pdf' ? me.maxPdfBytes : me.maxImageBytes
   if (file.size > max) {
     clearFile()
-    return flash(`That file is ${fmtSize(file.size)}. ${kind === 'pdf' ? 'PDFs' : 'Images'} are limited to ${fmtSize(max)}.`)
+    return note(`That file is ${fmtSize(file.size)}. ${kind === 'pdf' ? 'PDFs' : 'Images'} are limited to ${fmtSize(max)}.`)
   }
-  flash()
+  note()
   $('file-name').textContent = `${file.name} (${fmtSize(file.size)})`
   $('file-name').hidden = false
   $('file-clear').hidden = false
   if (kind === 'image') showPreview(file)
   else hidePreview()
+  updateComposer()
 })
 
 $('file-clear').addEventListener('click', clearFile)
@@ -472,7 +496,7 @@ $('chat').addEventListener('drop', (ev) => {
   dt.items.add(files[0])
   $('post-file').files = dt.files
   $('post-file').dispatchEvent(new Event('change'))
-  if (files.length > 1 && $('post-file').files.length) flash('One file per message: the first one is attached.')
+  if (files.length > 1 && $('post-file').files.length) note('One file per message: the first one is attached.')
 })
 // A file dropped anywhere else would make the browser open it in place of Parlor.
 for (const type of ['dragover', 'drop']) {
@@ -554,12 +578,23 @@ async function upload(uri, text, file) {
   return data
 }
 
-$('post-text').addEventListener('input', updateCount)
-function updateCount() {
-  const n = [...$('post-text').value].length
+// The count shows from 80% of the limit. The box grows with its text up to
+// the CSS max-height, then scrolls. Send is off while there is nothing to
+// send and while a message is going out.
+let sending = false
+$('post-text').addEventListener('input', updateComposer)
+function updateComposer() {
+  const box = $('post-text')
+  const n = [...box.value].length
   const max = me?.maxMessageLength ?? 1000
   $('count').textContent = `${n}/${max}`
+  $('count').hidden = n < max * 0.8
   $('count').classList.toggle('warn', n > max)
+  box.style.height = 'auto'
+  box.style.height = `${box.scrollHeight + box.offsetHeight - box.clientHeight}px`
+  const empty = !box.value.trim() && !$('post-file').files.length
+  $('send').disabled = sending || empty
+  $('send').textContent = sending ? 'Sending…' : 'Send'
 }
 
 $('post-text').addEventListener('keydown', (ev) => {
@@ -571,29 +606,29 @@ $('post-text').addEventListener('keydown', (ev) => {
 
 $('post-form').addEventListener('submit', async (ev) => {
   ev.preventDefault()
-  if (!current) return
+  if (!current || sending) return
   const text = $('post-text').value.trim()
   const file = $('post-file').files[0]
   if (!text && !file) return
-  const btn = ev.submitter ?? $('post-form').querySelector('button[type=submit]')
-  btn.disabled = true
-  flash()
+  sending = true
+  updateComposer()
+  note()
   try {
     if (file) {
-      flash(`Sending ${file.name}…`)
+      $('post-note').textContent = `Sending ${file.name}…`
       await upload(current.uri, text, file)
       clearFile()
-      flash()
+      note()
     } else {
       await api('/api/space/message', { method: 'POST', body: { uri: current.uri, text } })
     }
     $('post-text').value = ''
-    updateCount()
     await poll()
   } catch (err) {
-    flash(err.message)
+    note(err.message)
   } finally {
-    btn.disabled = false
+    sending = false
+    updateComposer()
   }
 })
 

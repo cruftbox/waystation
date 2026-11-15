@@ -377,7 +377,7 @@ try {
       cleared: !document.getElementById('chat').classList.contains('dropping'),
       name: document.getElementById('file-name').textContent,
       preview: !document.getElementById('file-preview').hidden,
-      note: document.getElementById('flash').textContent,
+      note: document.getElementById('post-note').textContent,
     }
     document.getElementById('file-clear').click()
     return out

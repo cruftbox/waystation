@@ -79,7 +79,7 @@
       <p id="chat-warning" class="small warn" hidden></p>
       <ol id="messages"></ol>
       <form id="post-form">
-        <textarea id="post-text" rows="2" placeholder="Write a message"></textarea>
+        <textarea id="post-text" rows="2" placeholder="Write a message" aria-describedby="send-hint"></textarea>
         <div id="file-preview" class="file-preview" hidden><img id="file-preview-img" alt="Image to send"></div>
         <div class="post-row">
           <div class="attach-row">
@@ -88,10 +88,14 @@
             </label>
             <span id="file-name" class="small" hidden></span>
             <button id="file-clear" type="button" class="link" hidden>Remove</button>
-            <span id="count" class="small"></span>
           </div>
-          <button type="submit">Send</button>
+          <div class="post-actions">
+            <span id="count" class="small" hidden></span>
+            <span id="send-hint" class="small">Enter sends, Shift+Enter adds a line</span>
+            <button id="send" type="submit" disabled>Send</button>
+          </div>
         </div>
+        <p id="post-note" class="small" aria-live="polite"></p>
       </form>
     </section>
     <section id="empty" class="card">
