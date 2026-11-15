@@ -4,6 +4,11 @@
 
 A lightweight chat client for atproto Spaces. People sign in with their atproto account over OAuth, see the spaces they host or were added to, open one, and chat. Hosts create spaces and add or remove members by handle. Parlor holds no game logic; its first use is testing Clockwork Conductor in Spaces.
 
+<p>
+  <img src="docs/screenshots/desktop-dark.png" width="640" alt="Parlor on a desktop in dark mode: the space list on the left, a chat with reactions and an image in the middle, and the Active members panel on the right">
+  <img src="docs/screenshots/mobile-light.png" width="180" alt="Parlor on a phone in light mode: a chat with a reaction and an image, above the message composer">
+</p>
+
 Status: works against the Spaces alpha sandbox. Spaces enters public beta on 2026-12-01; expect changes. See [SCOPE.md](SCOPE.md) for decisions and plan, and [DEPLOY.md](DEPLOY.md) for the server setup.
 
 ## How it works
