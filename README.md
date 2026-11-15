@@ -6,7 +6,7 @@ A lightweight chat client for atproto Spaces. People sign in with their atproto 
 
 <p>
   <img src="docs/screenshots/desktop-dark.png" width="640" alt="Waystation on a desktop in dark mode: the space list on the left, a chat with reactions and an image in the middle, and the Active members panel on the right">
-  <img src="docs/screenshots/mobile-light.png" width="180" alt="Waystation on a phone in light mode: a chat with a reaction and an image, above the message composer">
+  <img src="docs/screenshots/mobile-light.png" width="180" alt="Waystation on a phone in light mode: the space list above a chat with an image and a message">
 </p>
 
 Status: works against the Spaces alpha sandbox. Spaces enters public beta on 2026-12-01; expect changes. See [SCOPE.md](SCOPE.md) for decisions and plan, and [DEPLOY.md](DEPLOY.md) for the server setup.
