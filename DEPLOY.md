@@ -1,8 +1,8 @@
-# Deploying Waystation on cruftmanor.com
+# Deploying Waystation
 
-Host facts (inventoried 2026-11-14): AlmaLinux 8.10, InterWorx control panel, Apache 2.4 (`httpd`) on ports 80/443 bound to 67.43.2.255, DNS for cruftmanor.com served by ns1/ns2.pusateri.com (InterWorx, same host). System Node is v20 and is used by other things; Waystation brings its own Node. Clockwork (`clockwork-conductor.service`, `clockwork-dashboard.service` on 127.0.0.1:5000, proxied on :8443) is not touched by anything here.
+Written for a Linux server that runs Apache 2.4 (`httpd`) as the front end alongside other services. Waystation brings its own Node and touches nothing else on the host. Facts about the actual server (OS, control panel, other services, SSH host) are in `DEPLOY.local.md`, which is not committed.
 
-InterWorx regenerates `/etc/httpd/conf.d/vhost_*.conf`, so Waystation uses its own file, `/etc/httpd/conf.d/zzz-waystation.conf`, and its own certificate from acme.sh. Do not add waystation.cruftmanor.com to the InterWorx cruftmanor.com certificate: Waystation's port-80 virtual host would answer that certificate's renewal challenge and break its renewal.
+Waystation uses its own Apache file, `/etc/httpd/conf.d/zzz-waystation.conf`, and its own certificate from acme.sh, so a control panel that regenerates its own virtual host files does not overwrite them. Keep waystation.cruftmanor.com off any other certificate on the host: Waystation's port-80 virtual host would answer that certificate's renewal challenge and break its renewal.
 
 ## Layout
 
@@ -22,19 +22,19 @@ The service runs as the `waystation` system user (no shell, no home login), list
 
 ## DNS (done by the domain owner)
 
-In InterWorx DNS for cruftmanor.com:
+In the DNS for cruftmanor.com:
 
-1. `A` record: `waystation.cruftmanor.com` → `67.43.2.255`
+1. `A` record: `waystation.cruftmanor.com` → the server's address
 2. `TXT` record: `_lexicon.waystation.cruftmanor.com` → `did=did:plc:e2fj77s3rygus52me3ul6qka`
 
-Do not create an InterWorx "subdomain" for waystation; only the DNS records are needed.
+Only these two records are needed.
 
 The TXT record makes the space type declaration `com.cruftmanor.waystation.space` resolvable. It is published as a `com.atproto.lexicon.schema` record in the clockworkconductor sandbox account (that DID). Without it, OAuth sign-in fails with "Unable to retrieve space declarations". A failed lookup is cached by the sandbox for about 5 minutes.
 
 Check both before continuing:
 
-    dig +short A waystation.cruftmanor.com @ns1.pusateri.com
-    dig +short TXT _lexicon.waystation.cruftmanor.com @ns1.pusateri.com
+    dig +short A waystation.cruftmanor.com
+    dig +short TXT _lexicon.waystation.cruftmanor.com
 
 ## Certificate and Apache (after DNS)
 
@@ -64,7 +64,7 @@ Apache reads the key as root before dropping privileges, so `/etc/waystation/tls
 From a checkout of this repository, after committing:
 
     git archive HEAD \
-      | ssh clockwork-prod 'tar -x -C /opt/waystation/app --no-same-owner \
+      | ssh <ssh-host> 'tar -x -C /opt/waystation/app --no-same-owner \
           && cd /opt/waystation/app && PATH=/opt/waystation/node/bin:$PATH npm ci --omit=dev \
           && chown -R root:root /opt/waystation/app && systemctl restart waystation'
 

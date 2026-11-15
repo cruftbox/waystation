@@ -141,10 +141,10 @@ test('private addresses are refused', async () => {
   }
   for (const ip of ['8.8.8.8', '67.43.2.255', '2606:4700::1111', '::ffff:808:808']) assert.equal(isPrivateAddress(ip), false, ip)
   assert.throws(() => checkUrl('http://example.com'))
-  assert.throws(() => checkUrl('https://127.0.0.1:5000'))
+  assert.throws(() => checkUrl('https://127.0.0.1:8080'))
   assert.throws(() => checkUrl('https://[::1]/'))
   // A name resolving to loopback is refused at connect time.
-  await assert.rejects(safeFetch('https://localhost:5000/'), /private address/)
+  await assert.rejects(safeFetch('https://localhost:8080/'), /private address/)
 })
 
 test('normalizeHandle', () => {

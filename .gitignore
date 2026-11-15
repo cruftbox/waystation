@@ -6,3 +6,4 @@ state*.json
 sessions/
 data/
 !.env.example
+*.local.md

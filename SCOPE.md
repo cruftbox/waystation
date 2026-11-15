@@ -6,10 +6,10 @@ All Waystation code lives in this repository. Clockwork-specific code, such as t
 
 ## Decisions (2026-11-14)
 
-- **Separate project.** Waystation has no Clockwork code or Clockwork concepts in it. MIT license; private GitHub repository `cruftbox/waystation`.
+- **Separate project.** Waystation has no Clockwork code or Clockwork concepts in it. MIT license; GitHub repository `cruftbox/waystation`.
 - **Name (2026-11-15).** Renamed to Waystation because the earlier name sounded like an existing political social app. The rename moved the hostname, the lexicon NSIDs (`com.cruftmanor.waystation.*`), the server paths and the GitHub repository; spaces created under the earlier NSIDs were not carried over.
 - **Server-side Node app.** A Node server holds each user's OAuth session and makes the Spaces calls; the browser talks only to Waystation's server. Node because Bluesky's official atproto OAuth and Spaces libraries are written for it, and OAuth on the Spaces sandbox was verified with them.
-- **Hosting.** Runs on the cruftmanor.com server at `waystation.cruftmanor.com` (A record plus TLS certificate). Deployed over SSH. This is separate from Clockwork, which still deploys through its own dashboard. Setup and host facts are in DEPLOY.md.
+- **Hosting.** Runs at `waystation.cruftmanor.com` (A record plus TLS certificate) behind Apache, deployed over SSH. Setup is in DEPLOY.md; facts about the actual server are in `DEPLOY.local.md`, which is not committed.
 - **Lexicon.** Space type `com.cruftmanor.waystation.space` and message record `com.cruftmanor.waystation.message` (`text` up to 1000 graphemes, `createdAt`). The schemas are published from the clockworkconductor sandbox account (did:plc:e2fj77s3rygus52me3ul6qka); DNS needs `_lexicon.waystation.cruftmanor.com` TXT `did=did:plc:e2fj77s3rygus52me3ul6qka`.
 - **OAuth scopes.** Members: `space:com.cruftmanor.waystation.space?authority=*&collection=com.cruftmanor.waystation.message&collection=com.cruftmanor.waystation.reaction`. Hosts add `space:com.cruftmanor.waystation.space?authority=*&manage=create&manage=update`, chosen at sign-in with a checkbox. `listSpaces` is not used: it needs a read scope over every space type.
 - **Target.** Build against the Spaces alpha sandbox (`https://spaces-alpha.host.bsky.network`) now. The public beta starts 2026-12-01 with an updated PDS and an official SDK; expect rework then.
@@ -22,7 +22,7 @@ All Waystation code lives in this repository. Clockwork-specific code, such as t
 
 ## Known facts from sandbox testing
 
-These come from the Clockwork Spaces assessment (Clockwork repository, `Working Docs/atproto-spaces-assessment-brief.md`) and were verified on the alpha sandbox, 2026-11-12 to 11-14.
+These come from the Clockwork Spaces assessment and were verified on the alpha sandbox, 2026-11-12 to 11-14.
 
 - Spaces API names: `authorizeSpaceSync` (credential, about 605 s), `listWriters`, `putMembers` / `removeMembers`, `listSpaces`.
 - Discovery gap: after a member was added, that member's `listSpaces` filtered by the owner's DID did not return the space. It appeared only after the member wrote a record there (brief, "Tested on the sandbox 2026-11-13"; `spaces-sandbox-test/run.mjs` test 23).
@@ -42,15 +42,12 @@ Found while building (2026-11-14):
 
 ## Unverified
 
-- Backups: the host runs an Acronis agent and may back up `/var/lib/waystation` and `/etc/waystation`. Sessions in the database are encrypted with `SESSION_KEY`, but a backup holding both the database and `/etc/waystation/waystation.env` can decrypt them. Not checked.
 - Whether the beta adds a member-discovery mechanism. The beta announcement says nothing about it, so Waystation is not designed on that assumption.
 
 ## Risks
 
-- **Server-held OAuth sessions.** A compromise of Waystation's process or session store exposes refresh tokens and DPoP keys for every signed-in user, within their granted scopes.
-- **Open to any sandbox account.** Waystation becomes an Internet-facing multi-user service.
-- **Shared production server.** Clockwork and its dashboard run on the same host.
 - **Alpha-to-beta churn.** Revalidation is certain; the amount of rework is unknown.
+- Deployment risks are tracked in `DEPLOY.local.md`, which is not committed.
 
 ## Plan (reviewed with Codex, 2026-11-14)
 
@@ -68,7 +65,7 @@ Out of scope until beta: broader UI work, deployment polish, and abstractions ar
 ## Progress (2026-11-14)
 
 1. Done. Directory plus invite links (user decision).
-2. Done. Inventory recorded in DEPLOY.md.
+2. Done. Inventory recorded in `DEPLOY.local.md`.
 3. Done. Lexicons in `lexicons/`, published to the sandbox; `_lexicon.waystation.cruftmanor.com` TXT record live.
 4. Done. Live at https://waystation.cruftmanor.com (Apache proxy to the systemd service on 127.0.0.1:8791, Let's Encrypt certificate via acme.sh). 25/25 end-to-end checks pass against the hosted client with the production namespace.
 5. Done. 25/25 end-to-end checks against the sandbox (`npm run e2e`): sign-in with both scopes, CSRF, create, add, discovery, open by link, post, read (about 0.5 to 0.7 s to see the other user's message), plain-text rendering, removal (messages hidden within about 2 s, removed member refused), sign-out.
@@ -95,4 +92,4 @@ Out of scope until beta: broader UI work, deployment polish, and abstractions ar
 
 - Credentials and OAuth session data never enter the repository. Local secrets live in `.env`.
 - No passwords, tokens or DPoP keys in logs. Session storage is readable only by Waystation's service user and excluded from backups that leave the server.
-- On cruftmanor.com, Waystation runs as its own OS user with its own directories and logs, listens on a loopback-only port behind the reverse proxy, and has resource limits, so it cannot affect Clockwork.
+- On its server, Waystation runs as its own OS user with its own directories and logs, listens on a loopback-only port behind the reverse proxy, and has resource limits, so it cannot affect other services on the host.
