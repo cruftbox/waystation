@@ -61,12 +61,14 @@ Apache reads the key as root before dropping privileges, so `/etc/parlor/tls` ne
 
 ## Updating the code
 
-From a checkout of this repository:
+From a checkout of this repository, after committing:
 
-    tar -cz --exclude=./node_modules --exclude=./data --exclude=./.env --exclude=./.git . \
-      | ssh clockwork-prod 'tar -xz -C /opt/parlor/app --no-same-owner \
+    git archive HEAD \
+      | ssh clockwork-prod 'tar -x -C /opt/parlor/app --no-same-owner \
           && cd /opt/parlor/app && PATH=/opt/parlor/node/bin:$PATH npm ci --omit=dev \
           && chown -R root:root /opt/parlor/app && systemctl restart parlor'
+
+`git archive HEAD` sends exactly the committed tree: no uncommitted edits, untracked files, `.env`, `data/` or `node_modules`. It does not delete files on the server that were removed from the repository; remove those by hand.
 
 Restarting keeps sign-ins (sessions are in SQLite); open chat views re-sync.
 
