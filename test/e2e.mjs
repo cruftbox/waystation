@@ -272,7 +272,7 @@ try {
   const imgs = await A.page.locator('#messages img').count()
   check('UI shows messages as plain text', rendered.includes('<img src=x') && imgs === 0)
   const panel = await waitFor('active panel', async () => {
-    const items = await A.page.$$eval('#active-list li', (li) => li.map((x) => x.textContent))
+    const items = await A.page.$$eval('#active-list li', (li) => li.map((x) => x.title))
     return items.includes(owner.handle) && items.includes(member.handle) && items
   }, 10000)
   check('UI lists active members', panel.ok && !(await A.page.isHidden('#active')), JSON.stringify(panel.v ?? null))

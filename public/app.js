@@ -216,7 +216,19 @@ document.addEventListener('visibilitychange', () => {
 // server's writer list.
 function renderActive(active) {
   $('active-head').textContent = `Active (${active.length})`
-  $('active-list').replaceChildren(...active.map((a) => el('li', a.handle, a.me ? 'me' : undefined)))
+  $('active-list').replaceChildren(...active.map((a) => {
+    const li = el('li', undefined, a.me ? 'me' : undefined)
+    li.title = a.handle
+    // First label of the handle on its own line, the rest smaller below,
+    // so long sandbox handles do not run into the next entry. An
+    // unresolved DID is shown whole.
+    const dot = a.handle.startsWith('did:') ? -1 : a.handle.indexOf('.')
+    const head = el('span', dot > 0 ? a.handle.slice(0, dot) : a.handle, dot > 0 ? 'name' : 'name did')
+    li.append(head)
+    if (a.me) li.append(el('span', ' (you)', 'you'))
+    if (dot > 0) li.append(el('span', a.handle.slice(dot), 'rest'))
+    return li
+  }))
 }
 
 function renderMessages(messages) {
