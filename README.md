@@ -1,3 +1,5 @@
+<img src="public/icon.svg" width="64" height="64" alt="Parlor icon: a brown armchair on a cream tile">
+
 # Parlor
 
 A lightweight chat client for atproto Spaces. People sign in with their atproto account over OAuth, see the spaces they host or were added to, open one, and chat. Hosts create spaces and add or remove members by handle. Parlor holds no game logic; its first use is testing Clockwork Conductor in Spaces.
